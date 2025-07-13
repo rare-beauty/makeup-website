@@ -1,0 +1,63 @@
+/* frontend/src/components/Layout.css */
+.page-body {
+  padding: 30px;
+  min-height: 70vh;
+  background-color: #f7f7f7;
+  font-family: "Segoe UI", sans-serif;
+}
+
+.main-footer {
+  background-color: #222;
+  color: #fff;
+  padding: 30px 20px;
+  margin-top: 60px;
+  font-family: Arial, sans-serif;
+}
+
+.footer-content {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  max-width: 1100px;
+  margin: auto;
+}
+
+.footer-left h3 {
+  margin: 0;
+  font-size: 24px;
+}
+
+.footer-left p {
+  font-size: 14px;
+  margin-top: 5px;
+}
+
+.footer-links a {
+  display: block;
+  color: #aaa;
+  text-decoration: none;
+  margin: 5px 0;
+  font-size: 14px;
+}
+
+.footer-links a:hover {
+  color: #fff;
+}
+
+.footer-social a {
+  color: #aaa;
+  margin-right: 15px;
+  font-size: 20px;
+}
+
+.footer-social a:hover {
+  color: #61dafb;
+}
+
+.copyright {
+  text-align: center;
+  margin-top: 20px;
+  font-size: 13px;
+  color: #888;
+}
