@@ -1,0 +1,84 @@
+/* Base layout */
+body {
+  margin: 0;
+  font-family: 'Poppins', 'Segoe UI', sans-serif;
+  background-color: #F9FAFB;
+  color: #1F2937;
+}
+
+/* Navigation Header */
+nav {
+  background: #1e1e2f;
+  padding: 15px 40px;
+  display: flex;
+  justify-content: center;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+}
+
+nav a {
+  color: #ffffff;
+  text-decoration: none;
+  margin: 0 20px;
+  font-size: 18px;
+  font-weight: 500;
+  transition: color 0.3s ease, border-bottom 0.3s ease;
+  border-bottom: 2px solid transparent;
+  padding-bottom: 4px;
+}
+
+nav a:hover {
+  color: #00d8ff;
+  border-bottom: 2px solid #00d8ff;
+}
+
+/* Form Elements */
+input,
+textarea,
+button {
+  font-family: inherit;
+  font-size: 1rem;
+  padding: 10px;
+  border: 1px solid #E5E7EB;
+  border-radius: 6px;
+  width: 100%;
+  box-sizing: border-box;
+  transition: border-color 0.2s ease;
+}
+
+input:focus,
+textarea:focus {
+  outline: none;
+  border-color: #4F46E5;
+}
+
+/* Buttons */
+button {
+  cursor: pointer;
+  background-color: #4F46E5;
+  color: white;
+  border: none;
+  transition: background-color 0.3s ease;
+}
+
+button:hover {
+  background-color: #3730a3;
+}
+
+/* Section Headings */
+h2 {
+  color: #111827;
+  font-weight: 600;
+}
+
+/* Optional spacing */
+section {
+  padding: 20px;
+}
+
+/* Smooth fonts */
+* {
+  -webkit-font-smoothing: antialiased;
+}

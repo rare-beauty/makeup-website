@@ -1,0 +1,103 @@
+version: '3.8'
+
+services:
+  # === Contact & Blog ===
+  contact-blog-service:
+    build: ./contact-blog-service
+    ports:
+      - "4001:4001"
+    depends_on:
+      - contact-blog-db
+
+  contact-blog-db:
+    image: mongo
+    container_name: contact-blog-db
+    ports:
+      - "27022:27017"
+    volumes:
+      - contact-blog-data:/data/db
+
+  # === User Service ===
+  user-service:
+    build: ./user-service
+    ports:
+      - "4002:4002"
+    depends_on:
+      - user-db
+
+  user-db:
+    image: mongo
+    container_name: user-db
+    ports:
+      - "27018:27017"
+    volumes:
+      - user-data:/data/db
+
+  # === Product Service ===
+  product-service:
+    build: ./product-service
+    ports:
+      - "4003:4003"
+    depends_on:
+      - product-db
+    volumes:
+      - ./product-service/uploads:/app/uploads   # ✅ Added volume for image uploads
+
+  product-db:
+    image: mongo
+    container_name: product-db
+    ports:
+      - "27019:27017"
+    volumes:
+      - product-data:/data/db
+
+  # === Order Service ===
+  order-service:
+    build: ./order-service
+    ports:
+      - "4004:4004"
+    depends_on:
+      - order-db
+
+  order-db:
+    image: mongo
+    container_name: order-db
+    ports:
+      - "27020:27017"
+    volumes:
+      - order-data:/data/db
+
+  # === Review Service ===
+  review-service:
+    build: ./review-service
+    ports:
+      - "4005:4005"
+    depends_on:
+      - review-db
+
+  review-db:
+    image: mongo
+    container_name: review-db
+    ports:
+      - "27021:27017"
+    volumes:
+      - review-data:/data/db
+
+  # === Frontend (React) ===
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - contact-blog-service
+      - user-service
+      - product-service
+      - order-service
+      - review-service
+
+volumes:
+  contact-blog-data:
+  user-data:
+  product-data:
+  order-data:
+  review-data:
