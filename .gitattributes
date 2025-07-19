@@ -1,0 +1,20 @@
+* text=auto
+
+# Line endings
+*.sh text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+*.json text eol=lf
+*.tf text eol=lf
+*.tfvars text eol=lf
+*.py text eol=lf
+
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+
+# Binary files
+*.png binary
+*.jpg binary
+*.zip binary
+
+* text=auto
