@@ -46,3 +46,13 @@ terraform/Readme.txt
 node_modules/
 uploads/
 *.log
+
+# Ensure Terraform and code files always use LF
+*.tf text eol=lf
+*.tfvars text eol=lf
+*.sh text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+
+# For Windows-specific files, allow CRLF if needed
+*.bat text eol=crlf

@@ -1,7 +1,0 @@
-resource_group_name = "prod-rg"
-resource_group_location = "eastus"
-aks_name = "prod-aks"
-dns_prefix = "prodaks"
-node_count = "2"
-node_vm_size = "Standard_DS2_v2"
-environment = "prod"
