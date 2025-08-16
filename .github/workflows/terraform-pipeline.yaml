@@ -5,27 +5,20 @@ on:
     branches:
       - dev
       - main
-      - preprod
     paths:
-      - 'terraform/**'         # Only trigger when files inside terraform/ change
+      - 'terraform-code/**'
 
 jobs:
   terraform:
-    name: Terraform Workflow
+    name: Terraform Deployment
     runs-on: ubuntu-latest
 
-    env:
-      ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
-      ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
-      ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
-      ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
-
-    defaults:
-      run:
-        working-directory: terraform
+    permissions:
+      id-token: write
+      contents: read
 
     steps:
-      - name: Checkout repository
+      - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Set up Terraform
@@ -33,30 +26,46 @@ jobs:
         with:
           terraform_version: 1.6.6
 
+      - name: Azure Login with Federated Credential (OIDC)
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.ARM_CLIENT_ID }}
+          tenant-id: ${{ secrets.ARM_TENANT_ID }}
+          subscription-id: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+
+      - name: Detect Environment
+        id: select-env
+        run: |
+          if [[ "${GITHUB_REF##*/}" == "main" ]]; then
+            echo "env=production" >> $GITHUB_OUTPUT
+          else
+            echo "env=staging" >> $GITHUB_OUTPUT
+          fi
+
       - name: Terraform Init
         run: terraform init
+        working-directory: terraform-code/environments/${{ steps.select-env.outputs.env }}
 
       - name: Terraform Format
         run: terraform fmt -check -recursive
+        working-directory: terraform-code/environments/${{ steps.select-env.outputs.env }}
 
       - name: Terraform Validate
         run: terraform validate
+        working-directory: terraform-code/environments/${{ steps.select-env.outputs.env }}
 
       - name: Terraform Plan
         run: terraform plan -var-file="terraform.tfvars"
+        working-directory: terraform-code/environments/${{ steps.select-env.outputs.env }}
 
-      - name: Terraform Apply (Dev Branch - Auto)
-        if: github.ref == 'refs/heads/dev'
-        run: terraform apply -auto-approve -var-file="terraform.tfvars"
-
-      - name: Terraform Apply (Main Branch - Manual Approval)
+      - name: Manual Approval for Production
         if: github.ref == 'refs/heads/main'
         uses: trstringer/manual-approval@v1
         with:
           secret: ${{ secrets.GITHUB_TOKEN }}
-          approvers: vinaypal
+          approvers: vinaypalvirk51, sukhdeep26
           minimum-approvals: 1
 
-      - name: Terraform Apply (Main Branch - Run After Approval)
-        if: github.ref == 'refs/heads/main'
+      - name: Terraform Apply
         run: terraform apply -auto-approve -var-file="terraform.tfvars"
+        working-directory: terraform-code/environments/${{ steps.select-env.outputs.env }}
