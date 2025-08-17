@@ -119,5 +119,3 @@ Both workflows can be summarised at a glance:
 - **Disabling the ACR admin user:** According to Microsoft’s guidance, the admin account is intended for single‑user testing and should not be shared; instead, service principals or managed identities should be used.  Setting `admin_enabled = false` enforces this best practice.
 - **RBAC roles:** The `AcrPull` role allows our AKS cluster to pull images without granting unnecessary write permissions, and `Key Vault Secrets User` lets it read secret values from Key Vault.  Applying the principle of least privilege helps minimise security risks.
 - **SonarQube:** Static code analysis catches bugs and vulnerabilities early in the development cycle, making fixes quicker and less costly.  Integrating SonarQube into the CI pipeline ensures that every commit is checked for code quality and security issues.
-
-y and the work done on **16 Aug 2025**.  Future updates should add new sections as additional features or infrastructure are introduced.
