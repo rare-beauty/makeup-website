@@ -1,8 +1,4 @@
-# 🧴✨ Beauty Micro‑services – Terraform & CI/CD Diary (16 Aug 2025)
-
-<!-- Badges: point these to your real repository once it is hosted on GitHub -->
-![Terraform CI](https://github.com/your-org/makeup-website/actions/workflows/terraform-pipeline.yaml/badge.svg)
-![Docker CI](https://github.com/your-org/makeup-website/actions/workflows/arc-jfrog-push.yaml/badge.svg)
+# 🧴✨ Beauty – Diary (16 Aug 2025)
 
 ## Table of Contents
 
