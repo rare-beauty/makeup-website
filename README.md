@@ -11,7 +11,7 @@
 - [Infrastructure summary](#infrastructure-summary)
 - [GitHub Actions pipelines](#github-actions-pipelines)
 - [Notes and rationale](#notes-and-rationale)
-- [Next steps](#next-steps)
+  
 
 ## Current repository structure
 
@@ -51,10 +51,6 @@ makeup‑website/
 └── README.md
 ```
 
-The following diagram provides a visual representation of the same tree (generated from the repository at the time of writing):
-
-![Repository tree diagram]({{file:file-BpkdYvFQzhRELwEYAUB8D6}})
-
 ## What we did today (16 Aug 2025)
 
 ### 1 • Created environment folders for Terraform
@@ -75,14 +71,14 @@ The shared `main.tf` defines a modular infrastructure for the project.  The high
 
 - **Resource Group:** defines the resource group for all Azure resources used by this project.
 - **Virtual Network and subnets:** a VNet and subnets to host the AKS cluster and other services.
-- **Azure Container Registry (ACR):** used to store container images.  The ACR module sets `admin_enabled = false` to disable the registry’s admin account.  Microsoft notes that the admin account is meant for single‑user testing; sharing the admin credentials with multiple users is not recommended【41616245198294†L94-L119】.  Instead, we rely on Microsoft Entra identities (service principals or managed identities) to access the registry.
-- **Azure Key Vault:** used to store secrets such as database passwords.  The AKS cluster (or its managed identity) is assigned the **Key Vault Secrets User** role so it can read secret values【707466069183101†L140-L147】.
-- **Azure Kubernetes Service (AKS) cluster:** hosts the micro‑services described in the `src/` folder.  The cluster’s kubelet identity is granted the **AcrPull** role, allowing the nodes to pull images from ACR【321986890093608†L404-L413】.  The cluster is also given the **Key Vault Secrets User** role as mentioned above.
+- **Azure Container Registry (ACR):** used to store container images.  The ACR module sets `admin_enabled = false` to disable the registry’s admin account.  Microsoft notes that the admin account is meant for single‑user testing; sharing the admin credentials with multiple users is not recommended.  Instead, we rely on Microsoft Entra identities (service principals or managed identities) to access the registry.
+- **Azure Key Vault:** used to store secrets such as database passwords.  The AKS cluster (or its managed identity) is assigned the **Key Vault Secrets User** role so it can read secret values.
+- **Azure Kubernetes Service (AKS) cluster:** hosts the micro‑services described in the `src/` folder.  The cluster’s kubelet identity is granted the **AcrPull** role, allowing the nodes to pull images from ACR.  The cluster is also given the **Key Vault Secrets User** role as mentioned above.
 - **RBAC assignments:** two role assignments are created in Terraform:
-  1. **AcrPull:** grants the AKS cluster read‑only access to pull container images from the registry【321986890093608†L404-L413】.
-  2. **Key Vault Secrets User:** allows the cluster to read secrets from Key Vault【707466069183101†L140-L147】.  Without this assignment the cluster would not be able to retrieve certificates or secrets.
+  1. **AcrPull:** grants the AKS cluster read‑only access to pull container images from the registry.
+  2. **Key Vault Secrets User:** allows the cluster to read secrets from Key Vault.  Without this assignment the cluster would not be able to retrieve certificates or secrets.
 
-By modularising the infrastructure and assigning only the minimum required roles, we reduce the attack surface while keeping the configuration DRY (Don’t Repeat Yourself).  Disabling the ACR admin user avoids accidental use of shared registry credentials【41616245198294†L94-L119】.
+By modularising the infrastructure and assigning only the minimum required roles, we reduce the attack surface while keeping the configuration DRY (Don’t Repeat Yourself).  Disabling the ACR admin user avoids accidental use of shared registry credentials.
 
 ## Infrastructure summary
 
@@ -92,10 +88,10 @@ The following table summarises the main components defined in `main.tf`, their p
 |---|---|---|
 | **Resource group** | Logical container that holds all related Azure resources for the micro‑services. | Environment‑specific names (e.g., `rg-beauty-staging`, `rg-beauty-prod`). |
 | **Virtual network & subnets** | Provide network isolation and connectivity for AKS, ACR and other services. | CIDR ranges parameterised per environment. |
-| **Azure Container Registry (ACR)** | Stores container images built by the CI pipeline. | `admin_enabled = false` to disable the registry’s admin account【41616245198294†L94-L119】; uses managed identity for authentication. |
-| **Azure Key Vault** | Securely stores secrets such as database credentials. | AKS identity is granted the **Key Vault Secrets User** role【707466069183101†L140-L147】. |
-| **Azure Kubernetes Service (AKS) cluster** | Orchestrates the micro‑services defined in the `src/` folder. | Kubelet identity assigned **AcrPull** role to pull images from ACR【321986890093608†L404-L413】; cluster identity assigned **Key Vault Secrets User**. |
-| **RBAC assignments** | Grant minimum privileges needed by AKS and other identities. | `AcrPull` role for image pulls【321986890093608†L404-L413】; `Key Vault Secrets User` to read secrets【707466069183101†L140-L147】. |
+| **Azure Container Registry (ACR)** | Stores container images built by the CI pipeline. | `admin_enabled = false` to disable the registry’s admin account; uses managed identity for authentication. |
+| **Azure Key Vault** | Securely stores secrets such as database credentials. | AKS identity is granted the **Key Vault Secrets User** role. |
+| **Azure Kubernetes Service (AKS) cluster** | Orchestrates the micro‑services defined in the `src/` folder. | Kubelet identity assigned **AcrPull** role to pull images from ACR; cluster identity assigned **Key Vault Secrets User**. |
+| **RBAC assignments** | Grant minimum privileges needed by AKS and other identities. | `AcrPull` role for image pulls; `Key Vault Secrets User` to read secrets. |
 
 ### 3 • Added GitHub Actions workflows
 
@@ -110,7 +106,7 @@ Under **`.github/workflows`** two CI/CD pipelines were added:
 
 2. **`arc‑jfrog‑push.yaml`** – this workflow builds and pushes Docker images.  Key points:
    - **Build & push for staging and production:** the workflow builds images using the micro‑services in `src/` and pushes them to the appropriate ACR (for staging or production) by using the `AcrPush` or `AcrPull` roles accordingly.
-   - **SonarQube analysis:** before pushing, the workflow runs a SonarQube scan.  SonarQube is a static analysis tool that inspects source code for bugs, security vulnerabilities and code smells【571369797620274†L124-L134】.  Performing static analysis early in the pipeline helps catch issues before they reach production and reduces technical debt【571369797620274†L150-L160】.
+   - **SonarQube analysis:** before pushing, the workflow runs a SonarQube scan.  SonarQube is a static analysis tool that inspects source code for bugs, security vulnerabilities and code smells.  Performing static analysis early in the pipeline helps catch issues before they reach production and reduces technical debt.
    - **Multi‑environment tagging:** images are tagged with environment‑specific tags (e.g., `staging` or `production`) so deployments pull the correct version.
 
 ## GitHub Actions pipelines
@@ -120,19 +116,12 @@ Both workflows can be summarised at a glance:
 | Workflow | Purpose | Key steps |
 |---|---|---|
 | **`terraform‑pipeline.yaml`** | Automates Terraform checks and planning for each environment. | Runs `terraform fmt` and `terraform init` (format and initialise), performs `terraform validate`, executes `terraform plan -var-file` targeting the selected environment, uses OIDC to authenticate with Azure, and pauses for manual approval on the `main` branch before applying changes. |
-| **`arc‑jfrog‑push.yaml`** | Builds Docker images and pushes them to ACR for staging and production. | Builds each micro‑service in `src/`, performs a SonarQube scan to detect bugs and vulnerabilities【571369797620274†L124-L134】【571369797620274†L150-L160】, tags the images with environment‑specific tags, authenticates using `AcrPush`/`AcrPull` roles and pushes images to the appropriate container registry. |
+| **`arc‑jfrog‑push.yaml`** | Builds Docker images and pushes them to ACR for staging and production. | Builds each micro‑service in `src/`, performs a SonarQube scan to detect bugs and vulnerabilities, tags the images with environment‑specific tags, authenticates using `AcrPush`/`AcrPull` roles and pushes images to the appropriate container registry. |
 
 ## Notes and rationale
 
-- **Disabling the ACR admin user:** According to Microsoft’s guidance, the admin account is intended for single‑user testing and should not be shared; instead, service principals or managed identities should be used【41616245198294†L94-L119】.  Setting `admin_enabled = false` enforces this best practice.
-- **RBAC roles:** The `AcrPull` role allows our AKS cluster to pull images without granting unnecessary write permissions【321986890093608†L404-L413】, and `Key Vault Secrets User` lets it read secret values from Key Vault【707466069183101†L140-L147】.  Applying the principle of least privilege helps minimise security risks.
-- **SonarQube:** Static code analysis catches bugs and vulnerabilities early in the development cycle, making fixes quicker and less costly【571369797620274†L124-L134】.  Integrating SonarQube into the CI pipeline ensures that every commit is checked for code quality and security issues【571369797620274†L150-L160】.
+- **Disabling the ACR admin user:** According to Microsoft’s guidance, the admin account is intended for single‑user testing and should not be shared; instead, service principals or managed identities should be used.  Setting `admin_enabled = false` enforces this best practice.
+- **RBAC roles:** The `AcrPull` role allows our AKS cluster to pull images without granting unnecessary write permissions, and `Key Vault Secrets User` lets it read secret values from Key Vault.  Applying the principle of least privilege helps minimise security risks.
+- **SonarQube:** Static code analysis catches bugs and vulnerabilities early in the development cycle, making fixes quicker and less costly.  Integrating SonarQube into the CI pipeline ensures that every commit is checked for code quality and security issues.
 
-## Next steps
-
-- **Add a development environment:** Consider adding a third environment (e.g., `dev/`) under `terraform‑code/environments` with its own variable file.  This will allow safe experimentation without affecting staging or production.
-- **Automated deploy step:** Extend the `terraform‑pipeline.yaml` workflow with a `terraform apply` step that runs automatically for non‑production environments after plan succeeds.  For production, keep the manual approval.
-- **Monitoring & logging:** Integrate Azure Monitor or Application Insights with AKS and ACR to gain visibility into cluster health and container registry metrics.
-- **Secret rotation:** Implement periodic rotation of secrets stored in Key Vault and update the AKS cluster via the CSI driver or environment variable refresh.
-
-This README captures the state of the repository and the work done on **16 Aug 2025**.  Future updates should add new sections as additional features or infrastructure are introduced.
+y and the work done on **16 Aug 2025**.  Future updates should add new sections as additional features or infrastructure are introduced.
