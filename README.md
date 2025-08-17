@@ -17,7 +17,7 @@ The `makeup‑website` repository is organised into several high‑level folders
 makeup‑website/
 ├── .github/
 │   └── workflows/
-│       ├── arc‑jfrog‑push.yaml
+│       ├── arc‑sonar‑push.yaml
 │       └── terraform‑pipeline.yaml
 ├── src/
 │   ├── contact‑blog‑service/
@@ -100,7 +100,7 @@ Under **`.github/workflows`** two CI/CD pipelines were added:
    - **Manual approval for production:** when changes are made on the `main` branch, the workflow pauses and uses the [`tstringer/manual-approval@v1`](https://github.com/marketplace/actions/manual-approval) action to require manual approval before applying changes to production.  This ensures that no unreviewed change is deployed to the live environment.
    - **Federated credentials:** the workflow is configured to use GitHub’s OpenID Connect (OIDC) integration to authenticate to Azure without storing long‑lived secrets.
 
-2. **`arc‑jfrog‑push.yaml`** – this workflow builds and pushes Docker images.  Key points:
+2. **`arc‑sonar‑push.yaml`** – this workflow builds and pushes Docker images.  Key points:
    - **Build & push for staging and production:** the workflow builds images using the micro‑services in `src/` and pushes them to the appropriate ACR (for staging or production) by using the `AcrPush` or `AcrPull` roles accordingly.
    - **SonarQube analysis:** before pushing, the workflow runs a SonarQube scan.  SonarQube is a static analysis tool that inspects source code for bugs, security vulnerabilities and code smells.  Performing static analysis early in the pipeline helps catch issues before they reach production and reduces technical debt.
    - **Multi‑environment tagging:** images are tagged with environment‑specific tags (e.g., `staging` or `production`) so deployments pull the correct version.
