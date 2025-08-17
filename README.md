@@ -112,7 +112,7 @@ Both workflows can be summarised at a glance:
 | Workflow | Purpose | Key steps |
 |---|---|---|
 | **`terraform‑pipeline.yaml`** | Automates Terraform checks and planning for each environment. | Runs `terraform fmt` and `terraform init` (format and initialise), performs `terraform validate`, executes `terraform plan -var-file` targeting the selected environment, uses OIDC to authenticate with Azure, and pauses for manual approval on the `main` branch before applying changes. |
-| **`arc‑jfrog‑push.yaml`** | Builds Docker images and pushes them to ACR for staging and production. | Builds each micro‑service in `src/`, performs a SonarQube scan to detect bugs and vulnerabilities, tags the images with environment‑specific tags, authenticates using `AcrPush`/`AcrPull` roles and pushes images to the appropriate container registry. |
+| **`arc‑sonar‑push.yaml`** | Builds Docker images and pushes them to ACR for staging and production. | Builds each micro‑service in `src/`, performs a SonarQube scan to detect bugs and vulnerabilities, tags the images with environment‑specific tags, authenticates using `AcrPush`/`AcrPull` roles and pushes images to the appropriate container registry. |
 
 ## Notes and rationale
 
