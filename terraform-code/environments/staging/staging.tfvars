@@ -1,8 +1,8 @@
 resource_group_name     = "staging-rg"
-resource_group_location = "eastus"
+resource_group_location = "eastus2"
 
-vnet_name              = "staging-vnet"
-vnet_address_space     = ["10.10.0.0/16"]
+v_name              = "staging-vnet"
+address_ip          = ["10.10.0.0/16"]
 subnet_name            = "staging-subnet"
 subnet_address_prefixes = ["10.10.1.0/24"]
 

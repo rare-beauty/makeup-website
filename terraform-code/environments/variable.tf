@@ -8,12 +8,12 @@ variable "resource_group_location" {
   description = "Azure region for resources"
 }
 
-variable "vnet_name" {
+variable "v_name" {
   type        = string
   description = "Name of the Virtual Network"
 }
 
-variable "vnet_address_space" {
+variable "address_ip" {
   type        = list(string)
   description = "Address space for VNet"
 }
