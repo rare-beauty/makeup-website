@@ -1,0 +1,92 @@
+name: Terraform Pipeline
+
+on:
+  pull_request:
+    paths: ['terraform-code/**']
+  push:
+    branches: [ dev, main ]
+    paths: ['terraform-code/**']
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Environment to deploy"
+        required: true
+        type: choice
+        options: [staging, production]
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: tf-${{ github.workflow }}-${{ github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  terraform:
+    name: Terraform (${{ github.event_name == 'workflow_dispatch' && inputs.environment || (github.ref_name == 'main' && 'production' || 'staging') }})
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Pick env from manual input OR from branch (main=prod, others=staging)
+      - name: Detect Environment
+        id: envsel
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "env=${{ inputs.environment }}" >> $GITHUB_OUTPUT
+          elif [ "${GITHUB_REF##*/}" = "main" ]; then
+            echo "env=production" >> $GITHUB_OUTPUT
+          else
+            echo "env=staging" >> $GITHUB_OUTPUT
+          fi
+      - run: echo "TF_DIR=terraform-code/environments/${{ steps.envsel.outputs.env }}" >> $GITHUB_ENV
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.6
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.ARM_CLIENT_ID }}
+          tenant-id: ${{ secrets.ARM_TENANT_ID }}
+          subscription-id: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+
+      # IaC security (recommended)
+      - name: Checkov (IaC scan)
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: ${{ env.TF_DIR }}
+          soft_fail: false
+
+      - name: Terraform Init
+        working-directory: ${{ env.TF_DIR }}
+        run: terraform init -input=false
+
+      - name: Terraform Format
+        working-directory: ${{ env.TF_DIR }}
+        run: terraform fmt -check -recursive
+
+      - name: Terraform Validate
+        working-directory: ${{ env.TF_DIR }}
+        run: terraform validate
+
+      - name: Terraform Plan
+        working-directory: ${{ env.TF_DIR }}
+        run: terraform plan -input=false -no-color -var-file="terraform.tfvars" -out=tfplan
+
+      # Apply only when manually dispatched
+      - name: Manual Approval for Production
+        if: github.event_name == 'workflow_dispatch' && steps.envsel.outputs.env == 'production'
+        uses: trstringer/manual-approval@v1
+        with:
+          secret: ${{ secrets.GITHUB_TOKEN }}
+          approvers: vinaypalvirk51, sukhdeep26
+          minimum-approvals: 1
+
+      - name: Terraform Apply
+        if: github.event_name == 'workflow_dispatch'
+        working-directory: ${{ env.TF_DIR }}
+        run: terraform apply -input=false -auto-approve tfplan
