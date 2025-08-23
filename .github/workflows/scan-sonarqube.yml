@@ -1,0 +1,52 @@
+name: Code Scan (SonarQube)
+
+on:
+  pull_request:
+    branches: [ main, dev ]
+  push:
+    branches: [ main, dev ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sonarqube:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout (full history for PR decorations)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      # If your Gradle wrapper isn't executable in repo, uncomment:
+      # - name: Make gradlew executable
+      #   run: chmod +x ./gradlew
+
+      - name: SonarQube Scan (Gradle)
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+          SONAR_PROJECT_KEY: ${{ secrets.SONAR_PROJECT_KEY }}
+        run: |
+          ./gradlew --no-daemon sonarqube \
+            -Dsonar.host.url=$SONAR_HOST_URL \
+            -Dsonar.projectKey=$SONAR_PROJECT_KEY \
+            -Dsonar.login=$SONAR_TOKEN
+
+      # Optional: wait for Quality Gate result (requires SonarQube webhook configured)
+      - name: Quality Gate
+        uses: SonarSource/sonarqube-quality-gate-action@v1.1.0
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+        with:
+          scanMetadataReportFile: build/sonar/report-task.txt
