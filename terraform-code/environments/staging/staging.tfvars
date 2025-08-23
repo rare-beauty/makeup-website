@@ -1,5 +1,5 @@
 resource_group_name     = "staging-rg"
-resource_group_location = "eastus2"
+resource_group_location = "westus"
 
 v_name              = "staging-vnet"
 address_ip          = ["10.10.0.0/16"]
@@ -10,7 +10,7 @@ acr_name = "stagingacr123"
 acr_sku  = "Standard"
 
 keyvault_name = "staging-kv123"
-tenant_id     = "YOUR-TENANT-ID"
+//tenant_id     = "YOUR-TENANT-ID"
 
 aks        = "staging-aks"
 dns_prefix = "stagingaks"

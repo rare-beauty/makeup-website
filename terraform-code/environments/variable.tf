@@ -43,10 +43,10 @@ variable "keyvault_name" {
   description = "Azure Key Vault name"
 }
 
-variable "tenant_id" {
-  type        = string
-  description = "Azure Tenant ID"
-}
+# variable "tenant_id" {
+#   type        = string
+#   description = "Azure Tenant ID"
+# }
 
 variable "aks" {
   type        = string

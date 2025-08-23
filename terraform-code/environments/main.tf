@@ -44,12 +44,15 @@ module "acr" {
 #################################
 # Azure Key Vault
 #################################
+
+data "azurerm_client_config" "current" {}
+
 module "keyvault" {
   source                   = "git::https://github.com/rare-beauty/terraform-infrastructure.git//azurekeyvault"
   rg_name                  = module.resourcegroup.resource_group_name
   location                 = module.resourcegroup.resource_group_location
-  kv_name            = var.keyvault_name
-  tenant_id                = var.tenant_id
+  kv_name                  = var.keyvault_name
+  tenant_id                = data.azurerm_client_config.current.tenant_id
   sku_name                 = "standard"
   purge_protection_enabled = true
   soft_delete_retention_days      = 7
@@ -70,28 +73,28 @@ module "aks" {
   environment  = var.environment
 
   # Networking & ACR Integration
-  #vnet_subnet_id = module.subnet.subnet_id
-  #acr_id         = module.acr.acr_id
+  vnet_subnet_id = module.subnet.subnet_id
+  acr_id         = module.acr.acr_id
 }
 
 #################################
 # RBAC Assignments
 #################################
-# module "rbac" {
-#   source = "git::https://github.com/rare-beauty/terraform-infrastructure.git//rbac"
+module "rbac" {
+   source = "git::https://github.com/rare-beauty/terraform-infrastructure.git//rbac"
 
-#   assignments = [
-#     # AKS can pull images from ACR
-#     {
-#       principal_id    = module.aks.kubelet_identity
-#       role_definition = "AcrPull"
-#       scope           = module.acr.id
-#     },
-#     # AKS can access Key Vault secrets
-#     {
-#       principal_id    = module.aks.kubelet_identity
-#       role_definition = "Key Vault Secrets User"
-#       scope           = module.keyvault.id
-#     }
-#   ]
-# }
+   assignments = [
+     # AKS can pull images from ACR
+     {
+       principal_id    = module.aks.kubelet_identity
+       role_definition = "AcrPull"
+       scope           = module.acr.acr_id
+     },
+     # AKS can access Key Vault secrets
+     {
+       principal_id    = module.aks.kubelet_identity
+       role_definition = "Key Vault Secrets User"
+       scope           = module.keyvault.key_vault_id
+     }
+   ]
+ }
