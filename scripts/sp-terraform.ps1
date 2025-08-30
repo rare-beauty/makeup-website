@@ -1,4 +1,4 @@
-$sp = az ad sp create-for-rbac --name "terrafom" --role Contributor --scopes /subscriptions/0aebd59b-0fa7-463c-b58d-3596e3b848ea --output json | ConvertFrom-Json
+$sp = az ad sp create-for-rbac --name "terraform" --role Contributor --scopes /subscriptions/0aebd59b-0fa7-463c-b58d-3596e3b848ea --output json | ConvertFrom-Json
 
 # 1) Get the *Application* object ID for your app (not the SP object ID)
 $APP_OBJECT_ID = az ad app show --id $($sp.appId) --query id -o tsv
