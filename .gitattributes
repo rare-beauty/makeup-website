@@ -1,4 +1,4 @@
-# Default: text files normalized to LF in repo, checked out as LF
+# Default: text files normalized to LF
 *               text=auto eol=lf
 
 # Windows-only scripts keep CRLF
@@ -16,7 +16,8 @@
 *.js            text eol=lf
 *.ts            text eol=lf
 *.tsx           text eol=lf
-Dockerfile      text eol=lf      # (covers the usual Dockerfile name)
+# Covers the usual Dockerfile name
+Dockerfile      text eol=lf
 
 # Binaries (never touch)
 *.png           binary
