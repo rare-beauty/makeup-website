@@ -32,6 +32,30 @@ jobs:
           echo "acr=${{ secrets.PROD_ACR_LOGIN }}" >> $GITHUB_OUTPUT
         fi
 
+ # ---------- LINT (only Dockerfile + Node) ----------
+    - name: Hadolint (Dockerfile)
+      if: hashFiles('**/Dockerfile') != ''
+      uses: hadolint/hadolint-action@v3.1.0
+
+    - name: Use Node
+      if: hashFiles('**/package.json') != ''
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Install deps (Node)
+      if: hashFiles('**/package.json') != ''
+      run: npm ci
+
+    - name: Format check (Prettier)
+      if: hashFiles('**/package.json') != ''
+      run: npm run format:check --if-present
+
+    - name: Lint (ESLint)
+      if: hashFiles('**/package.json') != ''
+      run: npm run lint --if-present
+  # ---------- END LINT ----------
+
     - name: Azure Login via OIDC
       uses: azure/login@v1
       with:

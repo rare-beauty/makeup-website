@@ -54,6 +54,17 @@ jobs:
           tenant-id: ${{ secrets.ARM_TENANT_ID }}
           subscription-id: ${{ secrets.ARM_SUBSCRIPTION_ID }}
 
+      # ---------- LINT: TFLint (fast fail) ----------
+      - name: Setup TFLint
+        uses: terraform-linters/setup-tflint@v4
+
+      - name: Run TFLint
+        working-directory: ${{ env.TF_DIR }}
+        run: |
+          tflint --init
+          tflint
+      # ---------- END LINT ----------
+
       # IaC security (recommended)
       - name: Checkov (IaC scan)
         uses: bridgecrewio/checkov-action@v12
