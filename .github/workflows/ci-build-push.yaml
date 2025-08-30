@@ -83,17 +83,4 @@ jobs:
     #     docker tag $IMAGE_NAME:${{ matrix.environment }} ${{ secrets.JFROG_REGISTRY }}/$IMAGE_NAME:${{ matrix.environment }}
     #     docker push ${{ secrets.JFROG_REGISTRY }}/$IMAGE_NAME:${{ matrix.environment }}
 
-    # - name: Setup Java for SonarQube Scanner
-    #   uses: actions/setup-java@v3
-    #   with:
-    #     distribution: temurin
-    #     java-version: '17'
-
-    # - name: SonarQube Scan
-    #   env:
-    #     SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-    #   run: |
-    #     ./gradlew sonarqube \
-    #       -Dsonar.projectKey=${{ secrets.SONAR_PROJECT_KEY }} \
-    #       -Dsonar.host.url=${{ secrets.SONAR_HOST_URL }} \
-    #       -Dsonar.login=$SONAR_TOKEN 
+    
