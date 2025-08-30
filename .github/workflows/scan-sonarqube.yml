@@ -33,13 +33,19 @@ jobs:
         uses: SonarSource/sonarqube-scan-action@v2
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}   # should be https://sonarcloud.io
         with:
           args: >
             -Dsonar.projectKey=${{ secrets.SONAR_PROJECT_KEY }}
             -Dsonar.organization=${{ secrets.SONAR_ORGANIZATION }}
             -Dsonar.sources=.
-            -Dsonar.exclusions=**/node_modules/**,**/dist/**,**/build/**
+            -Dsonar.exclusions="**/node_modules/**,**/dist/**,**/build/**"
+
+      - name: Debug: token is valid
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+        run: curl -s -u "$SONAR_TOKEN:" "$SONAR_HOST_URL/api/authentication/validate"
 
       - name: Quality Gate
         uses: SonarSource/sonarqube-quality-gate-action@v1.1.0
