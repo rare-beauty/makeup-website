@@ -2,9 +2,9 @@ name: Code Scan (SonarQube)
 
 on:
   push:
-    branches: [ dev ]            # dev is the Main branch in SonarCloud
+    branches: [ main, dev ]            # dev is your SonarCloud main
   pull_request:
-    branches: [ dev ]            # PRs targeting dev
+    branches: [ main, dev ]
   workflow_dispatch:
 
 permissions:
@@ -13,12 +13,10 @@ permissions:
 jobs:
   sonarqube:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout (full history for PR decorations)
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+        with: { fetch-depth: 0 }
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -26,11 +24,28 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: SonarCloud scan (wait for Quality Gate)
+      # Pushes: do NOT block the build
+      - name: Sonar scan (pushes; no gate wait)
+        if: github.event_name == 'push'
         uses: SonarSource/sonarqube-scan-action@v2
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}   # e.g. https://sonarcloud.io
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+        with:
+          args: >
+            -Dsonar.projectKey=${{ secrets.SONAR_PROJECT_KEY }}
+            -Dsonar.organization=${{ secrets.SONAR_ORGANIZATION }}
+            -Dsonar.sources=.
+            -Dsonar.exclusions=**/node_modules/**,**/dist/**,**/build/**
+            -Dsonar.qualitygate.wait=false
+
+      # PRs: BLOCK if the gate fails
+      - name: Sonar scan (PRs; enforce gate)
+        if: github.event_name == 'pull_request'
+        uses: SonarSource/sonarqube-scan-action@v2
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
         with:
           args: >
             -Dsonar.projectKey=${{ secrets.SONAR_PROJECT_KEY }}
