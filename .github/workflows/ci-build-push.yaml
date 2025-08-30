@@ -1,8 +1,11 @@
-name: Build, Scan, Push (ACR + JFrog)
+name: Build, Scan, Push (ACR)
 
 on:
   push:
     branches: [ main, dev ]
+  workflow_run:
+    workflows: ["Terraform Pipeline"]
+    types: [completed]
 
 permissions:
   id-token: write
@@ -10,6 +13,8 @@ permissions:
 
 jobs:
   ci-cd:
+    # run only when Terraform Pipeline completed successfully
+    if: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
 
     strategy:
@@ -78,9 +83,3 @@ jobs:
         docker tag $IMAGE_NAME:${{ matrix.environment }} ${{ steps.env.outputs.acr }}/$IMAGE_NAME:${{ matrix.environment }}
         docker push ${{ steps.env.outputs.acr }}/$IMAGE_NAME:${{ matrix.environment }}
 
-    # - name: Push to JFrog
-    #   run: |
-    #     docker tag $IMAGE_NAME:${{ matrix.environment }} ${{ secrets.JFROG_REGISTRY }}/$IMAGE_NAME:${{ matrix.environment }}
-    #     docker push ${{ secrets.JFROG_REGISTRY }}/$IMAGE_NAME:${{ matrix.environment }}
-
-    
