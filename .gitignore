@@ -1,58 +1,27 @@
-# Local .terraform directories
-#.terraform/
+﻿# Default: text files normalized to LF
+*               text=auto eol=lf
 
-# .tfstate files
-# *.tfstate
-*.tfstate.*
+# Windows-only scripts keep CRLF
+*.bat           text eol=crlf
+*.cmd           text eol=crlf
+*.ps1           text eol=crlf
 
-# Crash log files
-crash.log
-crash.*.log
+# Common text that should be LF
+*.sh            text eol=lf
+*.yml           text eol=lf
+*.yaml          text eol=lf
+*.tf            text eol=lf
+*.tfvars        text eol=lf
+*.json          text eol=lf
+*.js            text eol=lf
+*.ts            text eol=lf
+*.tsx           text eol=lf
+# Covers the usual Dockerfile name
+Dockerfile      text eol=lf
 
-# Exclude all .tfvars files, which are likely to contain sensitive data, such as
-# password, private keys, and other secrets. These should not be part of version 
-# control as they are data points which are potentially sensitive and subject 
-# to change depending on the environment.
-# *.tfvars
-*.tfvars.json
-
-# Ignore override files as they are usually used to override resources locally and so
-# are not checked in
-override.tf
-override.tf.json
-*_override.tf
-*_override.tf.json
-
-# Ignore transient lock info files created by terraform apply
-.terraform.tfstate.lock.info
-
-# Include override files you do wish to add to version control using negated pattern
-# !example_override.tf
-
-# Include tfplan files to ignore the plan output of command: terraform plan -out=tfplan
-# example: *tfplan*
-
-# Ignore CLI configuration files
-.terraformrc
-terraform.rc
-# /E_commerce_project/web
-
-terraform/Readme.txt
-
-* text eol=lf
-
-/E_commerce_project/
-
-node_modules/
-uploads/
-*.log
-
-# Ensure Terraform and code files always use LF
-*.tf text eol=lf
-*.tfvars text eol=lf
-*.sh text eol=lf
-*.yml text eol=lf
-*.yaml text eol=lf
-
-# For Windows-specific files, allow CRLF if needed
-*.bat text eol=crlf
+# Binaries (never touch)
+*.png           binary
+*.jpg           binary
+*.gif           binary
+*.zip           binary
+*.exe           binary
