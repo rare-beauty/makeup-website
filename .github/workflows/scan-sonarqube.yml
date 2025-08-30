@@ -1,10 +1,10 @@
 name: Code Scan (SonarQube)
 
 on:
-  pull_request:
-    branches: [ main, dev ]
   push:
-    branches: [ main, dev ]
+    branches: [ dev ]            # dev is the Main branch in SonarCloud
+  pull_request:
+    branches: [ dev ]            # PRs targeting dev
   workflow_dispatch:
 
 permissions:
@@ -13,6 +13,7 @@ permissions:
 jobs:
   sonarqube:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout (full history for PR decorations)
         uses: actions/checkout@v4
@@ -25,16 +26,16 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: SonarQube Scan (Gradle)
+      - name: SonarCloud scan (wait for Quality Gate)
         uses: SonarSource/sonarqube-scan-action@v2
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}  # https://sonarcloud.io
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}   # e.g. https://sonarcloud.io
         with:
           args: >
             -Dsonar.projectKey=${{ secrets.SONAR_PROJECT_KEY }}
             -Dsonar.organization=${{ secrets.SONAR_ORGANIZATION }}
             -Dsonar.sources=.
-            -Dsonar.exclusions="**/node_modules/**,**/dist/**,**/build/**"
+            -Dsonar.exclusions=**/node_modules/**,**/dist/**,**/build/**
             -Dsonar.qualitygate.wait=true
             -Dsonar.qualitygate.timeout=1000
