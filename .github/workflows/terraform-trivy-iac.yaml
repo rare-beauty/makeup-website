@@ -28,19 +28,16 @@ jobs:
     runs-on: ubuntu-latest
     environment: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || (github.ref_name == 'main' && 'production' || 'staging') }}
 
-    # <<< Add this >>>
     env:
       ARM_CLIENT_ID:       ${{ secrets.AZURE_CLIENT_ID }}
       ARM_TENANT_ID:       ${{ secrets.AZURE_TENANT_ID }}
       ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
       ARM_USE_OIDC:        true
       ARM_SKIP_PROVIDER_REGISTRATION: true
-    # <<< /Add >>>
-    
+
     steps:
       - uses: actions/checkout@v4
 
-      # Pick env from manual input OR from branch (main=prod, others=staging)
       - name: Detect Environment
         id: envsel
         run: |
@@ -53,6 +50,15 @@ jobs:
           fi
       - run: echo "TF_DIR=terraform-code/environments/${{ steps.envsel.outputs.env }}" >> $GITHUB_ENV
 
+      # NEW: choose the right tfvars file without renaming yours
+      - name: Select tfvars file
+        run: |
+          if [ "${{ steps.envsel.outputs.env }}" = "production" ]; then
+            echo "TFVARS_FILE=prod.tfvars" >> $GITHUB_ENV
+          else
+            echo "TFVARS_FILE=staging.tfvars" >> $GITHUB_ENV
+          fi
+
       - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.6.6
@@ -64,7 +70,6 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      # ---------- LINT: TFLint (fast fail) ----------
       - name: Setup TFLint
         uses: terraform-linters/setup-tflint@v4
 
@@ -73,9 +78,7 @@ jobs:
         run: |
           tflint --init
           tflint
-      # ---------- END LINT ----------
 
-      # IaC security (recommended)
       - name: Checkov (IaC scan)
         uses: bridgecrewio/checkov-action@v12
         with:
@@ -96,9 +99,8 @@ jobs:
 
       - name: Terraform Plan
         working-directory: ${{ env.TF_DIR }}
-        run: terraform plan -input=false -no-color -var-file="terraform.tfvars" -out=tfplan
+        run: terraform plan -input=false -no-color -var-file="${{ env.TFVARS_FILE }}" -out=tfplan
 
-      # Apply only when manually dispatched
       - name: Manual Approval for Production
         if: github.event_name == 'workflow_dispatch' && steps.envsel.outputs.env == 'production'
         uses: trstringer/manual-approval@v1
