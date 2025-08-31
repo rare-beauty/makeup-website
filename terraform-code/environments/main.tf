@@ -90,7 +90,7 @@ module "rbac" {
        role_definition = "AcrPull"
        scope           = module.acr.acr_id
      },
-     # AKS can access Key Vault secrets
+     # AKS cluster can access Key Vault secrets
      {
        principal_id    = module.aks.kubelet_identity
        role_definition = "Key Vault Secrets User"
