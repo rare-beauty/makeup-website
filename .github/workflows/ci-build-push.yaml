@@ -15,7 +15,8 @@ permissions:
 jobs:
   ci-cd:
     # run only when Terraform Pipeline completed successfully
-    if: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' }}
+    # if: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' }}
+    
     runs-on: ubuntu-latest
 
     strategy:
