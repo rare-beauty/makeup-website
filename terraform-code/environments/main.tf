@@ -11,21 +11,21 @@ module "resourcegroup" {
 # Virtual Network
 #################################
 module "vnet" {
-  source        = "git::https://github.com/rare-beauty/terraform-infrastructure.git//virtualnetwork"
-  resourcegroup_name       = module.resourcegroup.resource_group_name
-  v_location      = module.resourcegroup.resource_group_location
-  v_name        = var.v_name
-  address_ip    = var.address_ip
+  source             = "git::https://github.com/rare-beauty/terraform-infrastructure.git//virtualnetwork"
+  resourcegroup_name = module.resourcegroup.resource_group_name
+  v_location         = module.resourcegroup.resource_group_location
+  v_name             = var.v_name
+  address_ip         = var.address_ip
 }
 
 #################################
 # Subnet
 #################################
 module "subnet" {
-  source           = "git::https://github.com/rare-beauty/terraform-infrastructure.git//subnet"
-  rgname          = module.resourcegroup.resource_group_name
-  vnetname        = module.vnet.vnet_name
-  subnet_name      = var.subnet_name
+  source                  = "git::https://github.com/rare-beauty/terraform-infrastructure.git//subnet"
+  rgname                  = module.resourcegroup.resource_group_name
+  vnetname                = module.vnet.vnet_name
+  subnet_name             = var.subnet_name
   subnet_address_prefixes = var.subnet_address_prefixes
 }
 
@@ -33,12 +33,12 @@ module "subnet" {
 # Azure Container Registry
 #################################
 module "acr" {
-  source        = "git::https://github.com/rare-beauty/terraform-infrastructure.git//acr"
-  resource_group_name       = module.resourcegroup.resource_group_name
-  location      = module.resourcegroup.resource_group_location
-  acr_name      = var.acr_name
-  sku           = var.acr_sku
-  admin_enabled = false # ✅ secure for staging/prod
+  source              = "git::https://github.com/rare-beauty/terraform-infrastructure.git//acr"
+  resource_group_name = module.resourcegroup.resource_group_name
+  location            = module.resourcegroup.resource_group_location
+  acr_name            = var.acr_name
+  sku                 = var.acr_sku
+  admin_enabled       = false # ✅ secure for staging/prod
 }
 
 #################################
@@ -48,14 +48,14 @@ module "acr" {
 data "azurerm_client_config" "current" {}
 
 module "keyvault" {
-  source                   = "git::https://github.com/rare-beauty/terraform-infrastructure.git//azurekeyvault"
-  rg_name                  = module.resourcegroup.resource_group_name
-  location                 = module.resourcegroup.resource_group_location
-  kv_name                  = var.keyvault_name
-  tenant_id                = data.azurerm_client_config.current.tenant_id
-  sku_name                 = "standard"
-  purge_protection_enabled = true
-  soft_delete_retention_days      = 7
+  source                     = "git::https://github.com/rare-beauty/terraform-infrastructure.git//azurekeyvault"
+  rg_name                    = module.resourcegroup.resource_group_name
+  location                   = module.resourcegroup.resource_group_location
+  kv_name                    = var.keyvault_name
+  tenant_id                  = data.azurerm_client_config.current.tenant_id
+  sku_name                   = "standard"
+  purge_protection_enabled   = true
+  soft_delete_retention_days = 7
 }
 
 #################################
@@ -67,10 +67,10 @@ module "aks" {
   rgname       = module.resourcegroup.resource_group_name
   aks_location = module.resourcegroup.resource_group_location
 
-  dns_prefix   = var.dns_prefix
-  node_count   = var.node_count
+  dns_prefix  = var.dns_prefix
+  node_count  = var.node_count
   vm_size     = var.node_vm_size
-  environment  = var.environment
+  environment = var.environment
 
   # Networking & ACR Integration
   vnet_subnet_id = module.subnet.subnet_id
@@ -81,20 +81,20 @@ module "aks" {
 # RBAC Assignments
 #################################
 module "rbac" {
-   source = "git::https://github.com/rare-beauty/terraform-infrastructure.git//rbac"
+  source = "git::https://github.com/rare-beauty/terraform-infrastructure.git//rbac"
 
-   assignments = [
-     # AKS can pull images from ACR
-     {
-       principal_id    = module.aks.kubelet_identity
-       role_definition = "AcrPull"
-       scope           = module.acr.acr_id
-     },
-     # AKS cluster can access Key Vault secrets
-     {
-       principal_id    = module.aks.kubelet_identity
-       role_definition = "Key Vault Secrets User"
-       scope           = module.keyvault.key_vault_id
-     }
-   ]
- }
+  assignments = [
+    # AKS can pull images from ACR
+    {
+      principal_id    = module.aks.kubelet_identity
+      role_definition = "AcrPull"
+      scope           = module.acr.acr_id
+    },
+    # AKS cluster can access Key Vault secrets
+    {
+      principal_id    = module.aks.kubelet_identity
+      role_definition = "Key Vault Secrets User"
+      scope           = module.keyvault.key_vault_id
+    }
+  ]
+}

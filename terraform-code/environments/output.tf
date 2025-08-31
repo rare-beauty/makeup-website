@@ -19,8 +19,8 @@ output "keyvault_id" {
 }
 
 output "aks_cluster_name" {
-  value = module.aks.name
-  description  = " my AKS cluster name "
+  value       = module.aks.name
+  description = " my AKS cluster name "
 }
 
 output "aks_kubelet_identity" {
