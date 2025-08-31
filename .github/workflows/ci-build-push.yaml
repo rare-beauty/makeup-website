@@ -3,10 +3,10 @@ name: Build, Scan, Push (ACR)
 on:
   push:
     branches: [ main, dev ]
-  workflow_run:
-    workflows: ["Terraform Pipeline"]
-    types: [completed]
-    branches: [ main, dev ]
+  # workflow_run:
+  #   workflows: ["Terraform Pipeline"]
+  #   types: [completed]
+  #   branches: [ main, dev ]
 
 permissions:
   id-token: write
