@@ -50,16 +50,22 @@ module "acr" {
 #################################
 
 module "keyvault" {
-  source                     = "git::https://github.com/rare-beauty/terraform-infrastructure.git//terraform/modules/azurekeyvault?ref=123979a43315e4f16478d0ca733994ac465797c7"
-  rg_name                    = module.resourcegroup.resource_group_name
-  location                   = module.resourcegroup.resource_group_location
-  kv_name                    = var.keyvault_name
-  tenant_id                  = data.azurerm_client_config.current.tenant_id
-  sku_name                   = "standard"
-  purge_protection_enabled   = true
-  soft_delete_retention_days = 7
-  tags                       = local.tags
+  source   = "git::https://github.com/rare-beauty/terraform-infrastructure.git//terraform/modules/azurekeyvault?ref=123979a43315e4f16478d0ca733994ac465797c7"
+  rg_name  = module.resourcegroup.resource_group_name
+  location = module.resourcegroup.resource_group_location
+  kv_name  = var.keyvault_name
+  tenant_id = data.azurerm_client_config.current.tenant_id
+
+  # defaults already secure; override if needed:
+  kv_vnet_subnet_ids = [module.subnet.subnet_id]  # firewall allowlist
+  enable_private_endpoint = true
+  subnet_id               = module.subnet.subnet_id
+  create_dns_zone         = true
+  vnet_id                 = module.vnet.vnet_id
+
+  tags = local.tags
 }
+
 
 #################################
 # AKS Cluster
