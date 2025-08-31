@@ -2,7 +2,7 @@ variable "cfg" {
   description = "Environment configuration (everything in one object)."
   type = object({
     #subscription_id          = string
-    environment              = string
+    
     resource_group_name      = string
     resource_group_location  = string
 
@@ -21,6 +21,6 @@ variable "cfg" {
     dns_prefix               = string
     node_count               = number
     node_vm_size             = string
-    
+    environment              = string
   })
 }

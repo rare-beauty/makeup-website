@@ -49,7 +49,7 @@ jobs:
             echo "env=staging" >> $GITHUB_OUTPUT
           fi
       - name: Set TF_DIR
-        run: echo "TF_DIR=terraform-code" >> $GITHUB_ENV
+        run: echo "TF_DIR=terraform-code/stack" >> $GITHUB_ENV
 
       # NEW: choose the right tfvars file without renaming yours
       - name: Select tfvars file
