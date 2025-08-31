@@ -12,7 +12,7 @@ az login
 # ==== Set variables ====
 $resourceGroupName  = "tfstate-rg"
 $location           = "eastus2"
-$storageAccountName = "tfstatestorage123"   # must be globally unique (all lowercase, 3-24 chars)
+$storageAccountName = "tfstatestorage30aug"   # must be globally unique (all lowercase, 3-24 chars)
 $containerName      = "tfstate"
 $tfstateKey         = "$EnvName.terraform.tfstate"  # staging.terraform.tfstate or prod.terraform.tfstate
 
