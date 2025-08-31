@@ -32,6 +32,6 @@ locals {
 
   # Base repo + ref to your modules (adjust paths/ref to match your repo!)
   //module_repo = "git::https://github.com/rare-beauty/terraform-infrastructure.git//"
-  module_ref  = "?ref=123979a43315e4f16478d0ca733994ac465797c7"  # <— pin a tag/commit/branch you control
+  //module_ref  = "?ref=123979a43315e4f16478d0ca733994ac465797c7"  # <— pin a tag/commit/branch you control
 }
 
