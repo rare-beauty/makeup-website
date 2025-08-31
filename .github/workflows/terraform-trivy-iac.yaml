@@ -48,7 +48,8 @@ jobs:
           else
             echo "env=staging" >> $GITHUB_OUTPUT
           fi
-      - run: echo "TF_DIR=terraform-code/environments" >> $GITHUB_ENV
+      - name: Set TF_DIR
+        run: echo "TF_DIR=terraform-code/environments/${{ steps.envsel.outputs.env }}" >> $GITHUB_ENV
 
       # NEW: choose the right tfvars file without renaming yours
       - name: Select tfvars file
@@ -88,6 +89,8 @@ jobs:
       - name: Terraform Init
         working-directory: ${{ env.TF_DIR }}
         run: terraform init -input=false
+            -backend-config=../../backend.common.hcl \
+            -backend-config=key=state/${{ steps.envsel.outputs.env }}.terraform.tfstate
 
       - name: Terraform Format
         working-directory: ${{ env.TF_DIR }}
