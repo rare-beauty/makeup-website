@@ -6,6 +6,7 @@ on:
   workflow_run:
     workflows: ["Terraform Pipeline"]
     types: [completed]
+    branches: [ main, dev ]
 
 permissions:
   id-token: write
