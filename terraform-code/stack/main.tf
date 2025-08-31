@@ -2,7 +2,7 @@
 # Resource Group
 #################################
 module "resourcegroup" {
-  source                  = "git::https://github.com/rare-beauty/terraform-infrastructure.git//resourcegroup?ref=123979a43315e4f16478d0ca733994ac465797c7"
+  source                  = "git::https://github.com/rare-beauty/terraform-infrastructure.git//terraform/modules/resourcegroup?ref=123979a43315e4f16478d0ca733994ac465797c7"
   resource_group_name     = var.resource_group_name
   resource_group_location = var.resource_group_location
   tags                    = local.tags
@@ -12,7 +12,7 @@ module "resourcegroup" {
 # Virtual Network
 #################################
 module "vnet" {
-  source             = "git::https://github.com/rare-beauty/terraform-infrastructure.git//virtualnetwork?ref=123979a43315e4f16478d0ca733994ac465797c7"
+  source             = "git::https://github.com/rare-beauty/terraform-infrastructure.git//terraform/modules/virtualnetwork?ref=123979a43315e4f16478d0ca733994ac465797c7"
   resourcegroup_name = module.resourcegroup.resource_group_name
   v_location         = module.resourcegroup.resource_group_location
   v_name             = var.v_name
@@ -24,7 +24,7 @@ module "vnet" {
 # Subnet
 #################################
 module "subnet" {
-  source                  = "git::https://github.com/rare-beauty/terraform-infrastructure.git//subnet?ref=123979a43315e4f16478d0ca733994ac465797c7"
+  source                  = "git::https://github.com/rare-beauty/terraform-infrastructure.git//terraform/modules/subnet?ref=123979a43315e4f16478d0ca733994ac465797c7"
   rgname                  = module.resourcegroup.resource_group_name
   vnetname                = module.vnet.vnet_name
   subnet_name             = var.subnet_name
@@ -36,7 +36,7 @@ module "subnet" {
 # Azure Container Registry
 #################################
 module "acr" {
-  source              = "git::https://github.com/rare-beauty/terraform-infrastructure.git//acr?ref=123979a43315e4f16478d0ca733994ac465797c7"
+  source              = "git::https://github.com/rare-beauty/terraform-infrastructure.git//terraform/modules/acr?ref=123979a43315e4f16478d0ca733994ac465797c7"
   resource_group_name = module.resourcegroup.resource_group_name
   location            = module.resourcegroup.resource_group_location
   acr_name            = var.acr_name
@@ -50,7 +50,7 @@ module "acr" {
 #################################
 
 module "keyvault" {
-  source                     = "git::https://github.com/rare-beauty/terraform-infrastructure.git//azurekeyvault?ref=123979a43315e4f16478d0ca733994ac465797c7"
+  source                     = "git::https://github.com/rare-beauty/terraform-infrastructure.git//terraform/modules/azurekeyvault?ref=123979a43315e4f16478d0ca733994ac465797c7"
   rg_name                    = module.resourcegroup.resource_group_name
   location                   = module.resourcegroup.resource_group_location
   kv_name                    = var.keyvault_name
@@ -65,7 +65,7 @@ module "keyvault" {
 # AKS Cluster
 #################################
 module "aks" {
-  source       = "git::https://github.com/rare-beauty/terraform-infrastructure.git//aks?ref=123979a43315e4f16478d0ca733994ac465797c7"
+  source       = "git::https://github.com/rare-beauty/terraform-infrastructure.git//terraform/modules/aks?ref=123979a43315e4f16478d0ca733994ac465797c7"
   aks_name     = var.aks
   rgname       = module.resourcegroup.resource_group_name
   aks_location = module.resourcegroup.resource_group_location
@@ -85,7 +85,7 @@ module "aks" {
 # RBAC Assignments
 #################################
 module "rbac" {
-  source = "git::https://github.com/rare-beauty/terraform-infrastructure.git//rbac?ref=123979a43315e4f16478d0ca733994ac465797c7"
+  source = "git::https://github.com/rare-beauty/terraform-infrastructure.git//terraform/modules/rbac?ref=123979a43315e4f16478d0ca733994ac465797c7"
   tags   = local.tags
   assignments = [
     # AKS can pull images from ACR
