@@ -49,8 +49,6 @@ module "acr" {
 # Azure Key Vault
 #################################
 
-data "azurerm_client_config" "current" {}
-
 module "keyvault" {
   source                     = "git::https://github.com/rare-beauty/terraform-infrastructure.git//azurekeyvault?ref=123979a43315e4f16478d0ca733994ac465797c7"
   rg_name                    = module.resourcegroup.resource_group_name
