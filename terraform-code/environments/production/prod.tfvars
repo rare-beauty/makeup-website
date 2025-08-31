@@ -10,7 +10,7 @@ acr_name = "prodacr123"
 acr_sku  = "Premium"
 
 keyvault_name = "prod-kv123"
-//tenant_id     = "YOUR-TENANT-ID"
+
 
 aks          = "prod-aks"
 dns_prefix   = "prodaks"
