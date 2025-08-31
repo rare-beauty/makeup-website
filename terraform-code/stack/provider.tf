@@ -19,7 +19,7 @@ terraform {
 provider "azurerm" {
   features {}
   # Use the env-specific subscription passed in via cfg
-  subscription_id = var.cfg.subscription_id
+  #subscription_id = var.cfg.subscription_id
 }
 
 data "azurerm_client_config" "current" {}
