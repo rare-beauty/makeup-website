@@ -10,7 +10,7 @@ acr_name = "stagingacr123"
 acr_sku  = "Standard"
 
 keyvault_name = "staging-kv123"
-//tenant_id     = "YOUR-TENANT-ID"
+
 
 aks        = "staging-aks"
 dns_prefix = "stagingaks"
