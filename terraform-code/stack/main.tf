@@ -43,6 +43,7 @@ module "acr" {
   sku                 = var.acr_sku
   admin_enabled       = false # ✅ secure for staging/prod
   tags                = local.tags
+  public_network_access_enabled = false
 }
 
 #################################
@@ -72,8 +73,10 @@ module "aks" {
   aks_location = module.resourcegroup.resource_group_location
 
   dns_prefix  = var.dns_prefix
+  private_cluster_enabled = true
   node_count  = var.node_count
   vm_size     = var.node_vm_size
+  host_encryption_enabled = true
   environment = var.environment
 
   # Networking & ACR Integration
