@@ -18,5 +18,5 @@ cfg = {
   node_vm_size = "Standard_B2s" # AKS needs >=2 vCPU; B1s won't work
 
   environment = "staging"
-  aks_module_ref = "main"
+  //aks_module_ref = "main"
 }

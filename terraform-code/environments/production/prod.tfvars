@@ -18,5 +18,5 @@ cfg = {
   node_vm_size = "Standard_B2s"  # AKS-compatible, cheap
 
   environment = "production"  # or "prod" if you prefer; purely a label
-  aks_module_ref = "68f8b1849a9241b11057ba3625a94f97b5acc242"
+  //aks_module_ref = "68f8b1849a9241b11057ba3625a94f97b5acc242"
 }

@@ -94,7 +94,21 @@ jobs:
           soft_fail: false
           #skip_check: ${{ env.SKIP_CHECKS }}
 
-      # ===== Terraform Init with env-aware -upgrade =====
+      # ===== NEW: read module ref per environment =====
+      - name: Read Module Ref
+        run: |
+          if [ "${{ steps.envsel.outputs.env }}" = "production" ]; then
+            echo "MODULE_REF=$(cat terraform-code/environments/production/module-ref.txt)" >> $GITHUB_ENV
+          else
+            echo "MODULE_REF=$(cat terraform-code/environments/staging/module-ref.txt)" >> $GITHUB_ENV
+          fi
+
+      # ===== NEW: render main.tf from template =====
+      - name: Render main.tf from template
+        run: |
+          sed "s/__REF__/${MODULE_REF}/g" terraform-code/stack/main.tf.tmpl > terraform-code/stack/main.tf
+      # =============================================
+
       - name: Terraform Init (Dev/Staging)
         if: ${{ steps.envsel.outputs.env != 'production' }}
         working-directory: ${{ env.TF_DIR }}
@@ -110,7 +124,6 @@ jobs:
           terraform init -input=false \
             -backend-config=../../backend.common.hcl \
             -backend-config=key=state/${{ steps.envsel.outputs.env }}.terraform.tfstate
-      # ================================================
 
       - name: Terraform Format
         working-directory: ${{ env.TF_DIR }}
