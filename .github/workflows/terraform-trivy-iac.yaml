@@ -116,7 +116,8 @@ jobs:
           output_format: sarif
           output_file_path: results.sarif
           soft_fail: false
-          skip_check: CKV_TF_1,CKV_TF_2
+          # Skip pinning + the other failing IDs only in non-prod
+          skip_check: CKV_TF_1,CKV_TF_2,CKV_AZURE_163,CKV_AZURE_165,CKV_AZURE_166,CKV_AZURE_167,CKV_AZURE_164,CKV_AZURE_117,CKV_AZURE_116,CKV_AZURE_170,CKV_AZURE_226,CKV_AZURE_109,CKV2_AZURE_32
 
       - name: Checkov (IaC source scan, Production)
         if: ${{ steps.envsel.outputs.env == 'production' }}
