@@ -16,7 +16,12 @@ jobs:
   ci-cd:
     # run only when Terraform Pipeline completed successfully
     # if: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' }}
-    
+
+        # Run staging only on dev, production only on main
+    if: ${{
+      (github.ref == 'refs/heads/dev'  && matrix.environment == 'staging') ||
+      (github.ref == 'refs/heads/main' && matrix.environment == 'production') 
+  }}
     runs-on: ubuntu-latest
 
     strategy:
