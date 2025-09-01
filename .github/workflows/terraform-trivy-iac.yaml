@@ -61,6 +61,16 @@ jobs:
             echo "TFVARS_FILE=terraform-code/environments/staging/staging.tfvars" >> $GITHUB_ENV
           fi
 
+      # --- NEW: Normalize module-ref.txt BEFORE reading it ---
+      - name: Normalize module-ref.txt (line endings & whitespace)
+        run: |
+          if [ "${{ steps.envsel.outputs.env }}" = "production" ]; then
+            f=terraform-code/environments/production/module-ref.txt
+          else
+            f=terraform-code/environments/staging/module-ref.txt
+          fi
+          tr -d '\r' < "$f" | sed 's/[[:space:]]*$//' > "$f.tmp" && mv "$f.tmp" "$f"
+
       # Render main.tf BEFORE linters/scanners
       - name: Read Module Ref
         run: |
@@ -73,6 +83,15 @@ jobs:
       - name: Render main.tf from template
         run: |
           sed "s/__REF__/${MODULE_REF}/g" terraform-code/stack/main.tf.tmpl > terraform-code/stack/main.tf
+
+      # --- NEW: Verify rendered module sources path is correct ---
+      - name: Verify rendered module sources
+        run: |
+          echo "MODULE_REF=${MODULE_REF}"
+          awk '/source *=/ && /rare-beauty\/terraform-infrastructure/ {print NR": "$0}' terraform-code/stack/main.tf
+          if ! grep -q 'git::https://github.com/rare-beauty/terraform-infrastructure.git//terraform/modules/' terraform-code/stack/main.tf; then
+            echo "❌ module sources missing the //terraform/modules/ subdir"; exit 1
+          fi
 
       - uses: hashicorp/setup-terraform@v3
         with:
