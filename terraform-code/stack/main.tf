@@ -79,7 +79,7 @@ module "aks" {
   host_encryption_enabled = true
   environment = var.environment
 
-  # Networking & ACR Integration
+  # Networking & ACR Integration - 
   vnet_subnet_id = module.subnet.subnet_id
   acr_id         = module.acr.acr_id
   tags           = local.tags
