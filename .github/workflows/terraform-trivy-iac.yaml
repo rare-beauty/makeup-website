@@ -61,7 +61,7 @@ jobs:
             echo "TFVARS_FILE=terraform-code/environments/staging/staging.tfvars" >> $GITHUB_ENV
           fi
 
-      # --- NEW: Normalize module-ref.txt BEFORE reading it ---
+      # --- Normalize module-ref.txt BEFORE reading it ---
       - name: Normalize module-ref.txt (line endings & whitespace)
         run: |
           if [ "${{ steps.envsel.outputs.env }}" = "production" ]; then
@@ -70,6 +70,7 @@ jobs:
             f=terraform-code/environments/staging/module-ref.txt
           fi
           tr -d '\r' < "$f" | sed 's/[[:space:]]*$//' > "$f.tmp" && mv "$f.tmp" "$f"
+          if ! [ -s "$f" ]; then echo "module-ref.txt is empty"; exit 1; fi
 
       # Render main.tf BEFORE linters/scanners
       - name: Read Module Ref
@@ -83,8 +84,11 @@ jobs:
       - name: Render main.tf from template
         run: |
           sed "s/__REF__/${MODULE_REF}/g" terraform-code/stack/main.tf.tmpl > terraform-code/stack/main.tf
+          if grep -q '__REF__' terraform-code/stack/main.tf; then
+            echo "Template placeholder __REF__ still present after render"; exit 1
+          fi
 
-      # --- NEW: Verify rendered module sources path is correct ---
+      # --- Verify rendered module sources path is correct ---
       - name: Verify rendered module sources
         run: |
           echo "MODULE_REF=${MODULE_REF}"
