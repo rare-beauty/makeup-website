@@ -94,12 +94,23 @@ jobs:
           soft_fail: false
           #skip_check: ${{ env.SKIP_CHECKS }}
 
-      - name: Terraform Init
+      # ===== Terraform Init with env-aware -upgrade =====
+      - name: Terraform Init (Dev/Staging)
+        if: ${{ steps.envsel.outputs.env != 'production' }}
+        working-directory: ${{ env.TF_DIR }}
+        run: |
+          terraform init -upgrade -input=false \
+            -backend-config=../../backend.common.hcl \
+            -backend-config=key=state/${{ steps.envsel.outputs.env }}.terraform.tfstate
+
+      - name: Terraform Init (Production)
+        if: ${{ steps.envsel.outputs.env == 'production' }}
         working-directory: ${{ env.TF_DIR }}
         run: |
           terraform init -input=false \
             -backend-config=../../backend.common.hcl \
             -backend-config=key=state/${{ steps.envsel.outputs.env }}.terraform.tfstate
+      # ================================================
 
       - name: Terraform Format
         working-directory: ${{ env.TF_DIR }}
