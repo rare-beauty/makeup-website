@@ -95,9 +95,6 @@ jobs:
         run: |
           tflint --init
           tflint --minimum-failure-severity=error
-          # Alternative instead of the line above:
-          # tflint --init
-          # tflint --disable-rule=terraform_module_pinned_source
 
       # ---- TFLint (Production): strict (should pass with tag/SHA) ----
       - name: Run TFLint (Production)
@@ -107,7 +104,9 @@ jobs:
           tflint --init
           tflint
 
-      - name: Checkov (IaC source scan)
+      # ---- Checkov (IaC source scan) split by env ----
+      - name: Checkov (IaC source scan, Dev/Staging)
+        if: ${{ steps.envsel.outputs.env != 'production' }}
         uses: bridgecrewio/checkov-action@v12
         with:
           directory: ${{ env.TF_DIR }}
@@ -117,7 +116,20 @@ jobs:
           output_format: sarif
           output_file_path: results.sarif
           soft_fail: false
-          #skip_check: ${{ env.SKIP_CHECKS }}
+          skip_check: CKV_TF_1,CKV_TF_2
+
+      - name: Checkov (IaC source scan, Production)
+        if: ${{ steps.envsel.outputs.env == 'production' }}
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: ${{ env.TF_DIR }}
+          framework: terraform
+          download_external_modules: true
+          var_file: ${{ env.TFVARS_FILE }}
+          output_format: sarif
+          output_file_path: results.sarif
+          soft_fail: false
+      # -----------------------------------------------
 
       - name: Terraform Init (Dev/Staging)
         if: ${{ steps.envsel.outputs.env != 'production' }}
