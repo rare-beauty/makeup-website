@@ -61,7 +61,7 @@ jobs:
             echo "TFVARS_FILE=terraform-code/environments/staging/staging.tfvars" >> $GITHUB_ENV
           fi
 
-      # ===== Render main.tf BEFORE linters/scanners =====
+      # Render main.tf BEFORE linters/scanners
       - name: Read Module Ref
         run: |
           if [ "${{ steps.envsel.outputs.env }}" = "production" ]; then
@@ -73,7 +73,6 @@ jobs:
       - name: Render main.tf from template
         run: |
           sed "s/__REF__/${MODULE_REF}/g" terraform-code/stack/main.tf.tmpl > terraform-code/stack/main.tf
-      # ==================================================
 
       - uses: hashicorp/setup-terraform@v3
         with:
@@ -89,7 +88,20 @@ jobs:
       - name: Setup TFLint
         uses: terraform-linters/setup-tflint@v4
 
-      - name: Run TFLint
+      # ---- TFLint (Dev/Staging): don't fail on warnings like ref=main ----
+      - name: Run TFLint (Dev/Staging)
+        if: ${{ steps.envsel.outputs.env != 'production' }}
+        working-directory: ${{ env.TF_DIR }}
+        run: |
+          tflint --init
+          tflint --minimum-failure-severity=error
+          # Alternative instead of the line above:
+          # tflint --init
+          # tflint --disable-rule=terraform_module_pinned_source
+
+      # ---- TFLint (Production): strict (should pass with tag/SHA) ----
+      - name: Run TFLint (Production)
+        if: ${{ steps.envsel.outputs.env == 'production' }}
         working-directory: ${{ env.TF_DIR }}
         run: |
           tflint --init
