@@ -1,7 +1,7 @@
 variable "cfg" {
   description = "Environment configuration (everything in one object)."
   type = object({
-    #subscription_id          = string
+    
     
     resource_group_name      = string
     resource_group_location  = string
