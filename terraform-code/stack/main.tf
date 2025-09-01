@@ -59,7 +59,7 @@ module "keyvault" {
   sku_name                   = "standard"
   purge_protection_enabled   = true
   soft_delete_retention_days = 7
-  public_network_access_enabled = false
+  public_network_access_enabled = true # for free account to avoid private endpoint cost
   tags                       = local.tags
 }
 
