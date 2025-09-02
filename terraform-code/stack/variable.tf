@@ -23,6 +23,6 @@ variable "cfg" {
     node_vm_size = string
     environment  = string
 
-    
+
   })
 }
