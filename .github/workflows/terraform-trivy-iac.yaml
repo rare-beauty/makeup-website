@@ -93,7 +93,7 @@ jobs:
         run: |
           echo "MODULE_REF=${MODULE_REF}"
           awk '/source *=/ && /rare-beauty\/terraform-infrastructure/ {print NR": "$0}' terraform-code/stack/main.tf
-          if ! grep -q 'git::https://github.com/rare-beauty/terraform-infrastructure.git//terraform/modules/' terraform-code/stack/main.tf; then
+          if ! grep -q 'github.com/rare-beauty/terraform-infrastructure//terraform/modules/' terraform-code/stack/main.tf; then
             echo "❌ module sources missing the //terraform/modules/ subdir"; exit 1
           fi
 
