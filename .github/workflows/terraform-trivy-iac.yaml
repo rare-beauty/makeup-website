@@ -2,11 +2,11 @@ name: Terraform Pipeline
 
 on:
   push:
-    branches: [ dev, main ]
-    # Either remove paths completely, or include the workflow path as well:
-    paths:
-      - 'terraform-code/**'
-      - '.github/workflows/**'
+    # branches: [ dev, main ]
+    # # Either remove paths completely, or include the workflow path as well:
+    # paths:
+    #   - 'terraform-code/**'
+    #   - '.github/workflows/**'
   pull_request:
     branches: [ dev, main ]
     paths:

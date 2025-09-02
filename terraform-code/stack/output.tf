@@ -27,7 +27,7 @@ output "aks_kubelet_identity" {
   value = module.aks.kubelet_identity
 }
 
-# ACR login server for terraform pipelines
+# ACR login server for terraform pipelines---
 output "acr_login_server" {
   value       = module.acr.login_server
   description = "The login server of the Azure Container Registry (used in CI/CD pipelines)"
