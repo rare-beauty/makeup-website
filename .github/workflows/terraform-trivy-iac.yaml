@@ -110,6 +110,22 @@ jobs:
           sed -n '1,160p' terraform-code/stack/main.tf
       # =============================================
 
+      # - name: Terraform Init (Dev/Staging)
+      #   if: ${{ steps.envsel.outputs.env != 'production' }}
+      #   working-directory: ${{ env.TF_DIR }}
+      #   run: |
+      #     terraform init -upgrade -input=false \
+      #       -backend-config=../../backend.common.hcl \
+      #       -backend-config=key=state/${{ steps.envsel.outputs.env }}.terraform.tfstate
+
+      # - name: Terraform Init (Production)
+      #   if: ${{ steps.envsel.outputs.env == 'production' }}
+      #   working-directory: ${{ env.TF_DIR }}
+      #   run: |
+      #     terraform init -input=false \
+      #       -backend-config=../../backend.common.hcl \
+      #       -backend-config=key=state/${{ steps.envsel.outputs.env }}.terraform.tfstate
+
       - name: Terraform Init (Dev/Staging)
         if: ${{ steps.envsel.outputs.env != 'production' }}
         working-directory: ${{ env.TF_DIR }}
@@ -125,7 +141,7 @@ jobs:
           terraform init -input=false \
             -backend-config=../../backend.common.hcl \
             -backend-config=key=state/${{ steps.envsel.outputs.env }}.terraform.tfstate
-
+            
       - name: Terraform Format
         working-directory: ${{ env.TF_DIR }}
         run: terraform fmt -check -recursive
