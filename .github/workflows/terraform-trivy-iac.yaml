@@ -1,17 +1,21 @@
 name: Terraform Pipeline
 
 on:
+  # Run on any push to dev or main when EITHER IaC changes OR the workflow itself changes.
   push:
-    # branches: [ dev, main ]
-    # # Either remove paths completely, or include the workflow path as well:
-    # paths:
-    #   - 'terraform-code/**'
-    #   - '.github/workflows/**'
+    branches: [ dev, main ]
+    paths:
+      - 'terraform-code/**'
+      - '.github/workflows/**'
+
+  # Run on PRs targeting dev or main when IaC or the workflow changes.
   pull_request:
     branches: [ dev, main ]
     paths:
       - 'terraform-code/**'
       - '.github/workflows/**'
+
+  # Always allow a manual run
   workflow_dispatch:
     inputs:
       environment:
@@ -19,6 +23,7 @@ on:
         required: true
         type: choice
         options: [staging, production]
+
 
 permissions:
   id-token: write
