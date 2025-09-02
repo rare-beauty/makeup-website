@@ -5,7 +5,7 @@ module "resourcegroup" {
   source                  = "https://github.com/rare-beauty/terraform-infrastructure/archive/__REF__.zip//terraform-infrastructure-__REF__/terraform/modules/resourcegroup"
   resource_group_name     = var.resource_group_name
   resource_group_location = var.resource_group_location
-  tags                    = local.tags
+ # tags                    = local.tags
 }
 
 #################################
@@ -17,7 +17,7 @@ module "vnet" {
   v_location         = module.resourcegroup.resource_group_location
   v_name             = var.v_name
   address_ip         = var.address_ip
-  tags               = local.tags
+  #tags               = local.tags
 }
 
 #################################
@@ -42,7 +42,7 @@ module "acr" {
   acr_name            = var.acr_name
   sku                 = var.acr_sku
   admin_enabled       = false # ✅ secure for staging/prod
-  tags                = local.tags
+ # tags                = local.tags
   public_network_access_enabled = false
 }
 
@@ -60,7 +60,7 @@ module "keyvault" {
   purge_protection_enabled   = true
   soft_delete_retention_days = 7
   public_network_access_enabled = false
-  tags                       = local.tags
+  #tags                       = local.tags
 }
 
 #################################
@@ -90,7 +90,7 @@ module "aks" {
 #################################
 module "rbac" {
   source = "https://github.com/rare-beauty/terraform-infrastructure/archive/__REF__.zip//terraform-infrastructure-__REF__/terraform/modules/rbac"
-  tags   = local.tags
+  #tags   = local.tags
   assignments = [
     # AKS can pull images from ACR
     {
