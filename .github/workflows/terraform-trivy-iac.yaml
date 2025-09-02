@@ -1,12 +1,17 @@
 name: Terraform Pipeline
 
 on:
-  # Trigger on any change to dev/main (remove pull_request if you don't want PR runs)
-  pull_request:
-    paths: ['terraform-code/**']
   push:
     branches: [ dev, main ]
-    paths: ['terraform-code/**']
+    # Either remove paths completely, or include the workflow path as well:
+    paths:
+      - 'terraform-code/**'
+      - '.github/workflows/**'
+  pull_request:
+    branches: [ dev, main ]
+    paths:
+      - 'terraform-code/**'
+      - '.github/workflows/**'
   workflow_dispatch:
     inputs:
       environment:
@@ -17,8 +22,8 @@ on:
 
 permissions:
   id-token: write
-  contents: write        # needed for auto-commit
-  pull-requests: write   # allow pushing to PRs that originate from same repo
+  contents: write
+  pull-requests: write
 
 concurrency:
   group: tf-${{ github.workflow }}-${{ github.ref_name }}
@@ -41,7 +46,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0   # so we can push auto-commit on non-prod
+          fetch-depth: 0
 
       - name: Detect Environment
         id: envsel
@@ -83,9 +88,7 @@ jobs:
 
       - name: Render main.tf from template (archive URLs)
         run: |
-          # Your main.tf.tmpl should use https://github.com/rare-beauty/terraform-infrastructure/archive/__REF__.zip//terraform/modules/<mod>
           sed "s#__REF__#${MODULE_REF}#g" terraform-code/stack/main.tf.tmpl > terraform-code/stack/main.tf
-          echo "---- first 160 lines of rendered main.tf ----"
           sed -n '1,160p' terraform-code/stack/main.tf
 
       - name: Verify archive layout for ref
@@ -93,7 +96,6 @@ jobs:
         run: |
           set -euo pipefail
           ZIP_URL="https://github.com/rare-beauty/terraform-infrastructure/archive/${MODULE_REF}.zip"
-          echo "Fetching ${ZIP_URL}"
           curl -sSL "${ZIP_URL}" -o /tmp/infra.zip
           unzip -Z1 /tmp/infra.zip > /tmp/zip.list
           ROOT="terraform-infrastructure-${MODULE_REF}"
@@ -106,13 +108,8 @@ jobs:
             "$ROOT/terraform/modules/subnet" \
             "$ROOT/terraform/modules/virtualnetwork"
           do
-            if ! grep -qE "^${path}(/|$)" /tmp/zip.list; then
-              echo "❌ Missing '${path}' in archive ${ZIP_URL}"
-              head -n 80 /tmp/zip.list || true
-              exit 1
-            fi
+            grep -qE "^${path}(/|$)" /tmp/zip.list || { echo "Missing $path"; exit 1; }
           done
-          echo "Archive layout OK."
 
       - name: Clean Terraform caches
         working-directory: ${{ env.TF_DIR }}
@@ -133,7 +130,6 @@ jobs:
       - name: Setup TFLint
         uses: terraform-linters/setup-tflint@v4
 
-      # ---------- Formatting strategy ----------
       - name: Terraform fmt (non-prod: fix)
         if: ${{ steps.envsel.outputs.env != 'production' }}
         working-directory: ${{ env.TF_DIR }}
@@ -156,7 +152,6 @@ jobs:
         if: ${{ steps.envsel.outputs.env == 'production' }}
         working-directory: ${{ env.TF_DIR }}
         run: terraform fmt -check -recursive -diff
-      # ----------------------------------------
 
       - name: Run TFLint (Dev/Staging)
         if: ${{ steps.envsel.outputs.env != 'production' }}
