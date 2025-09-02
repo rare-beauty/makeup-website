@@ -88,14 +88,36 @@ jobs:
             echo "Template placeholder __REF__ still present after render"; exit 1
           fi
 
-      # --- Verify rendered module sources path is correct ---
-      - name: Verify rendered module sources
+      # NEW: Assert we do NOT have git:: sources & we DO have archive-style paths
+      - name: Assert rendered module sources are archive-style (no git::)
         run: |
-          echo "MODULE_REF=${MODULE_REF}"
-          awk '/source *=/ && /rare-beauty\/terraform-infrastructure/ {print NR": "$0}' terraform-code/stack/main.tf
-          if ! grep -q 'github.com/rare-beauty/terraform-infrastructure//terraform/modules/' terraform-code/stack/main.tf; then
-            echo "❌ module sources missing the //terraform/modules/ subdir"; exit 1
+          echo "--- MODULE_REF=${MODULE_REF} ---"
+          echo ">>> Showing first 160 lines of rendered main.tf"
+          sed -n '1,160p' terraform-code/stack/main.tf || true
+
+          echo ">>> Checking for git-style sources (must be NONE)"
+          if grep -nE 'git::|\.git\?ref=' terraform-code/stack/main.tf; then
+            echo "❌ Found git-style module source(s) in terraform-code/stack/main.tf"
+            exit 1
           fi
+
+          echo ">>> Checking for archive-style sources (must be PRESENT)"
+          if ! grep -n 'github.com/rare-beauty/terraform-infrastructure//terraform/modules/' terraform-code/stack/main.tf; then
+            echo "❌ Expected archive-style sources missing in terraform-code/stack/main.tf"
+            exit 1
+          fi
+
+      # NEW: List every .tf Terraform will read to catch stray files with old sources
+      - name: List all .tf files Terraform will read
+        run: |
+          echo ">>> All .tf files under terraform-code/stack:"
+          find terraform-code/stack -type f -name '*.tf' -print \
+            -exec sh -c 'echo "--- {}"; sed -n "1,60p" "{}"' \;
+
+      # NEW: Nuke TF caches so old git URLs can't linger
+      - name: Clean Terraform caches
+        working-directory: ${{ env.TF_DIR }}
+        run: rm -rf .terraform .terraform.lock.hcl
 
       - uses: hashicorp/setup-terraform@v3
         with:
