@@ -40,6 +40,7 @@ jobs:
 
       - name: Detect Environment
         id: envsel
+        shell: bash
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "env=${{ inputs.environment }}" >> $GITHUB_OUTPUT
@@ -48,11 +49,13 @@ jobs:
           else
             echo "env=staging" >> $GITHUB_OUTPUT
           fi
+          echo "Selected env: ${{ steps.envsel.outputs.env }}"
 
       - name: Set TF_DIR
         run: echo "TF_DIR=terraform-code/stack" >> $GITHUB_ENV
 
       - name: Select tfvars file
+        shell: bash
         run: |
           if [ "${{ steps.envsel.outputs.env }}" = "production" ]; then
             echo "TFVARS_FILE=terraform-code/environments/production/prod.tfvars" >> $GITHUB_ENV
@@ -60,8 +63,9 @@ jobs:
             echo "TFVARS_FILE=terraform-code/environments/staging/staging.tfvars" >> $GITHUB_ENV
           fi
 
-      # Normalize and read module ref
-      - name: Normalize module-ref.txt
+      # --- Normalize and read module ref ---
+      - name: Normalize module-ref.txt and export MODULE_REF
+        shell: bash
         run: |
           if [ "${{ steps.envsel.outputs.env }}" = "production" ]; then
             f=terraform-code/environments/production/module-ref.txt
@@ -73,42 +77,57 @@ jobs:
           echo "MODULE_REF=$(cat "$f")" >> $GITHUB_ENV
 
       - name: Render main.tf from template (ZIP archive URLs)
+        shell: bash
         run: |
-          # Your template must contain __REF__ where the ref should go.
           sed "s#__REF__#${MODULE_REF}#g" terraform-code/stack/main.tf.tmpl > terraform-code/stack/main.tf
-          echo "---- first 80 lines of rendered main.tf ----"
-          sed -n '1,80p' terraform-code/stack/main.tf
+          if grep -q '__REF__' terraform-code/stack/main.tf; then
+            echo "Template placeholder __REF__ still present after render"; exit 1
+          fi
+          echo "---- first 120 lines of rendered main.tf ----"
+          sed -n '1,120p' terraform-code/stack/main.tf
 
-      # Assert no git:: sources & yes ZIP archive style
+      # --- Assert we do NOT have git:: sources & we DO have ZIP archive paths ---
       - name: Assert rendered module sources are archive-style (no git::)
+        shell: bash
         run: |
           echo "--- MODULE_REF=${MODULE_REF} ---"
           if grep -nE 'git::|\.git\?ref=' terraform-code/stack/main.tf; then
             echo "❌ Found git-style module source(s) in terraform-code/stack/main.tf"
             exit 1
           fi
-          if ! grep -n 'codeload.github.com/rare-beauty/terraform-infrastructure/zip/' terraform-code/stack/main.tf; then
+          if ! grep -nE 'github\.com/rare-beauty/terraform-infrastructure/archive/.+\.zip//terraform/modules/' terraform-code/stack/main.tf; then
             echo "❌ Expected ZIP archive sources missing in terraform-code/stack/main.tf"
             exit 1
           fi
 
-      # Preflight: confirm subdirs exist inside the ZIP for this ref
+      # --- Preflight: confirm subdirs exist inside the ZIP for this ref ---
       - name: Verify module subdirs exist in ZIP
+        shell: bash
         run: |
           set -euo pipefail
-          ZIP_URL="https://codeload.github.com/rare-beauty/terraform-infrastructure/zip/${MODULE_REF}"
+          REF="${MODULE_REF}"
+          # Prefer /archive/REF.zip. If that 404s, try the refs/heads path (for branches).
+          URL1="https://github.com/rare-beauty/terraform-infrastructure/archive/${REF}.zip"
+          URL2="https://github.com/rare-beauty/terraform-infrastructure/archive/refs/heads/${REF}.zip"
+          ZIP_URL="$URL1"
+          if ! curl -sI "$URL1" | head -n1 | grep -q ' 200 '; then
+            if curl -sI "$URL2" | head -n1 | grep -q ' 200 '; then
+              ZIP_URL="$URL2"
+            else
+              echo "❌ Could not fetch archive for ref '${REF}' via ${URL1} or ${URL2}"
+              exit 1
+            fi
+          fi
+
           echo "Fetching ${ZIP_URL}"
           curl -sSL "${ZIP_URL}" -o /tmp/ti.zip
-
-          # List ZIP contents
           unzip -Z1 /tmp/ti.zip > /tmp/zip.list
 
           must_exist () {
             local subpath="$1"
             if ! grep -qE "/${subpath}(/|$)" /tmp/zip.list; then
-              echo "❌ Missing '${subpath}' in ${ZIP_URL}"
-              echo "Sample of ZIP contents:"
-              head -n 60 /tmp/zip.list
+              echo "❌ Missing '${subpath}' in archive for ref '${REF}'"
+              head -n 80 /tmp/zip.list || true
               exit 1
             fi
           }
@@ -120,7 +139,9 @@ jobs:
           must_exist "terraform/modules/resourcegroup"
           must_exist "terraform/modules/subnet"
           must_exist "terraform/modules/virtualnetwork"
+          echo "✅ ZIP contains all expected module subdirs."
 
+      # --- Ensure no stale cache can re-introduce old sources ---
       - name: Clean Terraform caches
         working-directory: ${{ env.TF_DIR }}
         run: rm -rf .terraform .terraform.lock.hcl
@@ -139,6 +160,7 @@ jobs:
       - name: Setup TFLint
         uses: terraform-linters/setup-tflint@v4
 
+      # ---- TFLint (Dev/Staging): don't fail on warnings like ref=branch) ----
       - name: Run TFLint (Dev/Staging)
         if: ${{ steps.envsel.outputs.env != 'production' }}
         working-directory: ${{ env.TF_DIR }}
@@ -146,6 +168,7 @@ jobs:
           tflint --init
           tflint --minimum-failure-severity=error
 
+      # ---- TFLint (Production): strict ----
       - name: Run TFLint (Production)
         if: ${{ steps.envsel.outputs.env == 'production' }}
         working-directory: ${{ env.TF_DIR }}
@@ -153,6 +176,7 @@ jobs:
           tflint --init
           tflint
 
+      # ---- Checkov (IaC source scan) split by env ----
       - name: Checkov (IaC source scan, Dev/Staging)
         if: ${{ steps.envsel.outputs.env != 'production' }}
         uses: bridgecrewio/checkov-action@v12
@@ -177,9 +201,11 @@ jobs:
           output_format: sarif
           output_file_path: results.sarif
           soft_fail: false
+      # -----------------------------------------------
 
       - name: Terraform Init
         working-directory: ${{ env.TF_DIR }}
+        shell: bash
         run: |
           if [ "${{ steps.envsel.outputs.env }}" = "production" ]; then
             terraform init -input=false \
