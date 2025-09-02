@@ -8,7 +8,7 @@ cfg = {
   subnet_address_prefixes = ["10.10.1.0/24"]
 
   acr_name = "stagingacr123"
-  acr_sku  = "Basic"            # cheaper than Standard
+  acr_sku  = "Basic" # cheaper than Standard
 
   keyvault_name = "staging-kv123"
 

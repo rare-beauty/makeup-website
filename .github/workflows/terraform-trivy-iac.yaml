@@ -77,12 +77,13 @@ jobs:
           echo "MODULE_REF=$(cat "$f")"
 
       - name: Render main.tf from template (archive URLs)
+        shell: bash
         run: |
           sed "s#__REF__#${MODULE_REF}#g" terraform-code/stack/main.tf.tmpl > terraform-code/stack/main.tf
           echo "---- first 160 lines of rendered main.tf ----"
           sed -n '1,160p' terraform-code/stack/main.tf
 
-      # Verify ZIP structure contains the expected subdirs with the correct top-level folder
+      # Optional sanity check of the archive layout for the ref you selected
       - name: Verify archive layout for ref
         shell: bash
         run: |
@@ -91,7 +92,6 @@ jobs:
           echo "Fetching ${ZIP_URL}"
           curl -sSL "${ZIP_URL}" -o /tmp/infra.zip
           unzip -Z1 /tmp/infra.zip > /tmp/zip.list
-
           ROOT="terraform-infrastructure-${MODULE_REF}"
           for path in \
             "$ROOT/terraform/modules/acr" \
@@ -142,23 +142,35 @@ jobs:
           tflint --init
           tflint
 
-      - name: Terraform Init (Dev/Staging)
-        if: ${{ steps.envsel.outputs.env != 'production' }}
+      # --- Formatting: auto-fix on PRs/non-prod, enforce only on prod ---
+      - name: Terraform Format (auto-fix on PR/Dev)
+        if: ${{ github.event_name == 'pull_request' || steps.envsel.outputs.env != 'production' }}
+        working-directory: ${{ env.TF_DIR }}
+        run: terraform fmt -recursive
+
+      - name: Commit fmt changes (PRs/Dev)
+        if: ${{ github.event_name == 'pull_request' || steps.envsel.outputs.env != 'production' }}
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore(tf): auto-format with terraform fmt"
+          file_pattern: terraform-code/stack/*.tf
+
+      - name: Terraform Format (enforce on prod)
+        if: ${{ steps.envsel.outputs.env == 'production' && github.event_name != 'pull_request' }}
+        working-directory: ${{ env.TF_DIR }}
+        run: terraform fmt -check -recursive -diff
+      # ------------------------------------------------------------------
+
+      - name: Terraform Init
         working-directory: ${{ env.TF_DIR }}
         run: |
-          terraform init -upgrade -input=false \
-            -backend-config=key=state/${{ steps.envsel.outputs.env }}.terraform.tfstate
-
-      - name: Terraform Init (Production)
-        if: ${{ steps.envsel.outputs.env == 'production' }}
-        working-directory: ${{ env.TF_DIR }}
-        run: |
-          terraform init -input=false \
-            -backend-config=key=state/production.terraform.tfstate
-
-      - name: Terraform Format
-        working-directory: ${{ env.TF_DIR }}
-        run: terraform fmt -check -recursive
+          if [ "${{ steps.envsel.outputs.env }}" = "production" ]; then
+            terraform init -input=false \
+              -backend-config=key=state/production.terraform.tfstate
+          else
+            terraform init -upgrade -input=false \
+              -backend-config=key=state/${{ steps.envsel.outputs.env }}.terraform.tfstate
+          fi
 
       - name: Terraform Validate
         working-directory: ${{ env.TF_DIR }}
