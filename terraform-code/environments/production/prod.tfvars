@@ -8,7 +8,7 @@ cfg = {
   subnet_address_prefixes = ["10.20.1.0/24"]
 
   acr_name = "prodacr123"
-  acr_sku  = "Basic" # cheaper than Standard/Premiu
+  acr_sku  = "Basic" # cheaper than Standard/Premium
 
   keyvault_name = "prod-kv123"
 
