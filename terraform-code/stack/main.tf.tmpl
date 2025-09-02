@@ -82,6 +82,7 @@ module "aks" {
   # Networking & ACR Integration - 
   vnet_subnet_id = module.subnet.subnet_id
   acr_id         = module.acr.acr_id
+  #log_analytics_workspace_id = var.cfg.log_analytics_workspace_id
   #tags           = local.tags
 }
 
