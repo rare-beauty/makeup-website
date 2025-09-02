@@ -59,9 +59,9 @@ jobs:
       - name: Select tfvars file
         run: |
           if [ "${{ steps.envsel.outputs.env }}" = "production" ]; then
-            echo "TFVARS_FILE=terraform-code/environments/production/prod.tfvars" >> $GITHUB_ENV
+            echo "TFVARS_FILE=../environments/production/prod.tfvars" >> $GITHUB_ENV
           else
-            echo "TFVARS_FILE=terraform-code/environments/staging/staging.tfvars" >> $GITHUB_ENV
+            echo "TFVARS_FILE=../environments/staging/staging.tfvars" >> $GITHUB_ENV
           fi
 
       - uses: hashicorp/setup-terraform@v3
