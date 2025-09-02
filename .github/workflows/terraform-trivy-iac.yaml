@@ -126,22 +126,17 @@ jobs:
       #       -backend-config=../../backend.common.hcl \
       #       -backend-config=key=state/${{ steps.envsel.outputs.env }}.terraform.tfstate
 
-      - name: Terraform Init (Dev/Staging)
-        if: ${{ steps.envsel.outputs.env != 'production' }}
+      - name: Terraform Init
         working-directory: ${{ env.TF_DIR }}
         run: |
-          terraform init -upgrade -input=false \
-            -backend-config=../../backend.common.hcl \
-            -backend-config=key=state/${{ steps.envsel.outputs.env }}.terraform.tfstate
+          if [ "${{ steps.envsel.outputs.env }}" = "production" ]; then
+            terraform init -input=false \
+              -backend-config=key=state/production.terraform.tfstate
+          else
+            terraform init -upgrade -input=false \
+              -backend-config=key=state/${{ steps.envsel.outputs.env }}.terraform.tfstate
+          fi
 
-      - name: Terraform Init (Production)
-        if: ${{ steps.envsel.outputs.env == 'production' }}
-        working-directory: ${{ env.TF_DIR }}
-        run: |
-          terraform init -input=false \
-            -backend-config=../../backend.common.hcl \
-            -backend-config=key=state/${{ steps.envsel.outputs.env }}.terraform.tfstate
-            
       - name: Terraform Format
         working-directory: ${{ env.TF_DIR }}
         run: terraform fmt -check -recursive
