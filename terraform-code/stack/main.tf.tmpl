@@ -2,7 +2,7 @@
 # Resource Group
 #################################
 module "resourcegroup" {
-  source                  = "https://github.com/rare-beauty/terraform-infrastructure/archive/__REF__.zip//terraform/modules/resourcegroup"
+  source                  = "https://github.com/rare-beauty/terraform-infrastructure/archive/__REF__.zip//terraform-infrastructure-__REF__/terraform/modules/resourcegroup"
   resource_group_name     = var.resource_group_name
   resource_group_location = var.resource_group_location
   tags                    = local.tags
@@ -12,7 +12,7 @@ module "resourcegroup" {
 # Virtual Network
 #################################
 module "vnet" {
-  source             = "https://github.com/rare-beauty/terraform-infrastructure/archive/__REF__.zip//terraform/modules/virtualnetwork"
+  source             = "https://github.com/rare-beauty/terraform-infrastructure/archive/__REF__.zip//terraform-infrastructure-__REF__/terraform/modules/virtualnetwork"
   resourcegroup_name = module.resourcegroup.resource_group_name
   v_location         = module.resourcegroup.resource_group_location
   v_name             = var.v_name
@@ -24,7 +24,7 @@ module "vnet" {
 # Subnet
 #################################
 module "subnet" {
-  source                  = "https://github.com/rare-beauty/terraform-infrastructure/archive/__REF__.zip//terraform/modules/subnet"
+  source                  = "https://github.com/rare-beauty/terraform-infrastructure/archive/__REF__.zip//terraform-infrastructure-__REF__/terraform/modules/subnet"
   rgname                  = module.resourcegroup.resource_group_name
   vnetname                = module.vnet.vnet_name
   subnet_name             = var.subnet_name
@@ -36,7 +36,7 @@ module "subnet" {
 # Azure Container Registry
 #################################
 module "acr" {
-  source              = "https://github.com/rare-beauty/terraform-infrastructure/archive/__REF__.zip//terraform/modules/acr"
+  source              = "https://github.com/rare-beauty/terraform-infrastructure/archive/__REF__.zip//terraform-infrastructure-__REF__/terraform/modules/acr"
   resource_group_name = module.resourcegroup.resource_group_name
   location            = module.resourcegroup.resource_group_location
   acr_name            = var.acr_name
@@ -51,7 +51,7 @@ module "acr" {
 #################################
 
 module "keyvault" {
-  source                     = "https://github.com/rare-beauty/terraform-infrastructure/archive/__REF__.zip//terraform/modules/azurekeyvault"
+  source                     = "https://github.com/rare-beauty/terraform-infrastructure/archive/__REF__.zip//terraform-infrastructure-__REF__/terraform/modules/azurekeyvault"
   rg_name                    = module.resourcegroup.resource_group_name
   location                   = module.resourcegroup.resource_group_location
   kv_name                    = var.keyvault_name
@@ -67,7 +67,7 @@ module "keyvault" {
 # AKS Cluster
 #################################
 module "aks" {
-  source       = "https://github.com/rare-beauty/terraform-infrastructure/archive/__REF__.zip//terraform/modules/aks"
+  source       = "https://github.com/rare-beauty/terraform-infrastructure/archive/__REF__.zip//terraform-infrastructure-__REF__/terraform/modules/aks"
   aks_name     = var.aks
   rgname       = module.resourcegroup.resource_group_name
   aks_location = module.resourcegroup.resource_group_location
@@ -89,7 +89,7 @@ module "aks" {
 # RBAC Assignments
 #################################
 module "rbac" {
-  source = "https://github.com/rare-beauty/terraform-infrastructure/archive/__REF__.zip//terraform/modules/rbac"
+  source = "https://github.com/rare-beauty/terraform-infrastructure/archive/__REF__.zip//terraform-infrastructure-__REF__/terraform/modules/rbac"
   tags   = local.tags
   assignments = [
     # AKS can pull images from ACR
