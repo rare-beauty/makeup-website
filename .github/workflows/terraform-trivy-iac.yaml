@@ -106,7 +106,8 @@ jobs:
       # ===== NEW: render main.tf from template =====
       - name: Render main.tf from template
         run: |
-          sed "s/__REF__/${MODULE_REF}/g" terraform-code/stack/main.tf.tmpl > terraform-code/stack/main.tf
+          sed "s#__REF__#${MODULE_REF}#g" terraform-code/stack/main.tf.tmpl > terraform-code/stack/main.tf
+          sed -n '1,160p' terraform-code/stack/main.tf
       # =============================================
 
       - name: Terraform Init (Dev/Staging)
