@@ -3,8 +3,8 @@
 #################################
 module "resourcegroup" {
   source                  = "https://github.com/rare-beauty/terraform-infrastructure/archive/__REF__.zip//terraform-infrastructure-__REF__/terraform/modules/resourcegroup"
-  resource_group_name     = var.resource_group_name
-  resource_group_location = var.resource_group_location
+  resource_group_name     = var.cfg.resource_group_name
+  resource_group_location = var.cfg.resource_group_location
  # tags                    = local.tags
 }
 
@@ -15,8 +15,8 @@ module "vnet" {
   source             = "https://github.com/rare-beauty/terraform-infrastructure/archive/__REF__.zip//terraform-infrastructure-__REF__/terraform/modules/virtualnetwork"
   resourcegroup_name = module.resourcegroup.resource_group_name
   v_location         = module.resourcegroup.resource_group_location
-  v_name             = var.v_name
-  address_ip         = var.address_ip
+  v_name             = var.cfg.v_name
+  address_ip         = var.cfg.address_ip
   #tags               = local.tags
 }
 
@@ -27,8 +27,8 @@ module "subnet" {
   source                  = "https://github.com/rare-beauty/terraform-infrastructure/archive/__REF__.zip//terraform-infrastructure-__REF__/terraform/modules/subnet"
   rgname                  = module.resourcegroup.resource_group_name
   vnetname                = module.vnet.vnet_name
-  subnet_name             = var.subnet_name
-  subnet_address_prefixes = var.subnet_address_prefixes
+  subnet_name             = var.cfg.subnet_name
+  subnet_address_prefixes = var.cfg.subnet_address_prefixes
   #tags                    = local.tags
 }
 
@@ -39,8 +39,8 @@ module "acr" {
   source              = "https://github.com/rare-beauty/terraform-infrastructure/archive/__REF__.zip//terraform-infrastructure-__REF__/terraform/modules/acr"
   resource_group_name = module.resourcegroup.resource_group_name
   location            = module.resourcegroup.resource_group_location
-  acr_name            = var.acr_name
-  sku                 = var.acr_sku
+  acr_name            = var.cfg.acr_name
+  sku                 = var.cfg.acr_sku
   admin_enabled       = false # ✅ secure for staging/prod
  # tags                = local.tags
   public_network_access_enabled = false
@@ -54,7 +54,7 @@ module "keyvault" {
   source                     = "https://github.com/rare-beauty/terraform-infrastructure/archive/__REF__.zip//terraform-infrastructure-__REF__/terraform/modules/azurekeyvault"
   rg_name                    = module.resourcegroup.resource_group_name
   location                   = module.resourcegroup.resource_group_location
-  kv_name                    = var.keyvault_name
+  kv_name                    = var.cfg.keyvault_name
   tenant_id                  = data.azurerm_client_config.current.tenant_id
   sku_name                   = "standard"
   purge_protection_enabled   = true
@@ -68,16 +68,16 @@ module "keyvault" {
 #################################
 module "aks" {
   source       = "https://github.com/rare-beauty/terraform-infrastructure/archive/__REF__.zip//terraform-infrastructure-__REF__/terraform/modules/aks"
-  aks_name     = var.aks
+  aks_name     = var.cfg.aks
   rgname       = module.resourcegroup.resource_group_name
   aks_location = module.resourcegroup.resource_group_location
 
-  dns_prefix  = var.dns_prefix
+  dns_prefix  = var.cfg.dns_prefix
   private_cluster_enabled = true
-  node_count  = var.node_count
-  vm_size     = var.node_vm_size
+  node_count  = var.cfg.node_count
+  vm_size     = var.cfg.node_vm_size
   host_encryption_enabled = true
-  environment = var.environment
+  environment = var.cfg.environment
 
   # Networking & ACR Integration - 
   vnet_subnet_id = module.subnet.subnet_id
