@@ -165,9 +165,7 @@ jobs:
         run: terraform fmt -check -recursive -diff
       # -----------------------------
 
-      - name: Terraform Validate
-        working-directory: ${{ env.TF_DIR }}
-        run: terraform validate
+      
 
       - name: Terraform Init (Dev/Staging)
         if: ${{ steps.envsel.outputs.env != 'production' }}
@@ -183,6 +181,10 @@ jobs:
           terraform init -input=false \
             -backend-config=key=state/production.terraform.tfstate
 
+      - name: Terraform Validate
+        working-directory: ${{ env.TF_DIR }}
+        run: terraform validate
+        
       - name: Terraform Plan
         working-directory: ${{ env.TF_DIR }}
         run: terraform plan -input=false -no-color -var-file="${{ env.TFVARS_FILE }}" -out=tfplan
