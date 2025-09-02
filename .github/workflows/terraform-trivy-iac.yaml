@@ -167,6 +167,24 @@ jobs:
 
       
 
+<<<<<<< Updated upstream
+=======
+      # ===== NEW: read module ref per environment =====
+      - name: Read Module Ref
+        run: |
+          if [ "${{ steps.envsel.outputs.env }}" = "production" ]; then
+            echo "MODULE_REF=$(cat terraform-code/environments/production/module-ref.txt)" >> $GITHUB_ENV
+          else
+            echo "MODULE_REF=$(cat terraform-code/environments/staging/module-ref.txt)" >> $GITHUB_ENV
+          fi
+
+      # ===== NEW: render main.tf from template =====
+      - name: Render main.tf from template
+        run: |
+          sed "s/__REF__/${MODULE_REF}/g" terraform-code/stack/main.tf.tmpl > terraform-code/stack/main.tf
+      # =============================================
+
+>>>>>>> Stashed changes
       - name: Terraform Init (Dev/Staging)
         if: ${{ steps.envsel.outputs.env != 'production' }}
         working-directory: ${{ env.TF_DIR }}
@@ -179,7 +197,16 @@ jobs:
         working-directory: ${{ env.TF_DIR }}
         run: |
           terraform init -input=false \
+<<<<<<< Updated upstream
             -backend-config=key=state/production.terraform.tfstate
+=======
+            -backend-config=../../backend.common.hcl \
+            -backend-config=key=state/${{ steps.envsel.outputs.env }}.terraform.tfstate
+
+      - name: Terraform Format
+        working-directory: ${{ env.TF_DIR }}
+        run: terraform fmt -check -recursive
+>>>>>>> Stashed changes
 
       - name: Terraform Validate
         working-directory: ${{ env.TF_DIR }}
