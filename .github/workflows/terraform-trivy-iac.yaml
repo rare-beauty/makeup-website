@@ -114,7 +114,7 @@ jobs:
         run: |
           if [ "${{ steps.envsel.outputs.env }}" = "production" ]; then
             KEY="state/production.terraform.tfstate"
-            UPGRADE_FLAG=""
+            UPGRADE_FLAG="-upgrade"
           else
             KEY="state/${{ steps.envsel.outputs.env }}.terraform.tfstate"
             UPGRADE_FLAG="-upgrade"
