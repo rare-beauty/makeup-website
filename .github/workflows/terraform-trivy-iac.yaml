@@ -1,11 +1,11 @@
 name: Terraform Pipeline
 
 on:
-  pull_request:
-    paths: ['terraform-code/**']
+  # Trigger on any change to dev/main (remove pull_request if you don't want PR runs)
   push:
     branches: [ dev, main ]
-    paths: ['terraform-code/**']
+  pull_request:
+    branches: [ dev, main ]
   workflow_dispatch:
     inputs:
       environment:
@@ -37,7 +37,10 @@ jobs:
       ARM_SKIP_PROVIDER_REGISTRATION: true
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # so we can push auto-commit on non-prod
 
       - name: Detect Environment
         id: envsel
@@ -79,6 +82,7 @@ jobs:
 
       - name: Render main.tf from template (archive URLs)
         run: |
+          # Your main.tf.tmpl should use https://github.com/rare-beauty/terraform-infrastructure/archive/__REF__.zip//terraform/modules/<mod>
           sed "s#__REF__#${MODULE_REF}#g" terraform-code/stack/main.tf.tmpl > terraform-code/stack/main.tf
           echo "---- first 160 lines of rendered main.tf ----"
           sed -n '1,160p' terraform-code/stack/main.tf
@@ -113,7 +117,8 @@ jobs:
         working-directory: ${{ env.TF_DIR }}
         run: rm -rf .terraform .terraform.lock.hcl
 
-      - uses: hashicorp/setup-terraform@v3
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.6.6
 
