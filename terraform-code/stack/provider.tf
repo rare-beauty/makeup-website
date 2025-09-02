@@ -23,7 +23,7 @@ provider "azurerm" {
   #subscription_id = var.cfg.subscription_id
 }
 
-#data "azurerm_client_config" "current" {}
+data "azurerm_client_config" "current" {}
 
 locals {
   tags = {
