@@ -23,14 +23,11 @@ variable "cfg" {
     node_vm_size = string
     environment  = string
 
-<<<<<<< Updated upstream
-=======
     aks                      = string
     dns_prefix               = string
     node_count               = number
     node_vm_size             = string
     environment              = string
     
->>>>>>> Stashed changes
   })
 }
