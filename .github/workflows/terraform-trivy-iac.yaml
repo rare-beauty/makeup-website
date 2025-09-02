@@ -34,14 +34,15 @@ jobs:
       ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
       ARM_USE_OIDC:        true
       ARM_SKIP_PROVIDER_REGISTRATION: true
-      # SKIP_CHECKS: CKV_AZURE_233,CKV_AZURE_237,CKV_AZURE_165,CKV_AZURE_164,CKV_AZURE_166,CKV_AZURE_167,CKV_AZURE_163,CKV_AZURE_109,CKV_AZURE_189,CKV2_AZURE_32,CKV_AZURE_4,CKV_AZURE_6,CKV_AZURE_171,CKV_AZURE_168,CKV_AZURE_141,CKV_AZURE_117,CKV_AZURE_116,CKV_AZURE_172,CKV_AZURE_170,CKV_AZURE_226,CKV_AZURE_232
 
     steps:
       - uses: actions/checkout@v4
 
       - name: Detect Environment
         id: envsel
+        shell: bash
         run: |
+          set -euo pipefail
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "env=${{ inputs.environment }}" >> $GITHUB_OUTPUT
           elif [ "${GITHUB_REF##*/}" = "main" ]; then
@@ -54,16 +55,20 @@ jobs:
         run: echo "TF_DIR=terraform-code/stack" >> $GITHUB_ENV
 
       - name: Select tfvars file
+        shell: bash
         run: |
+          set -euo pipefail
           if [ "${{ steps.envsel.outputs.env }}" = "production" ]; then
             echo "TFVARS_FILE=terraform-code/environments/production/prod.tfvars" >> $GITHUB_ENV
           else
             echo "TFVARS_FILE=terraform-code/environments/staging/staging.tfvars" >> $GITHUB_ENV
           fi
 
-      # --- Normalize module-ref.txt BEFORE reading it ---
-      - name: Normalize module-ref.txt (line endings & whitespace)
+      # Ensure module-ref is clean (no CRLF or trailing space) before using it
+      - name: Normalize module-ref.txt
+        shell: bash
         run: |
+          set -euo pipefail
           if [ "${{ steps.envsel.outputs.env }}" = "production" ]; then
             f=terraform-code/environments/production/module-ref.txt
           else
@@ -72,49 +77,65 @@ jobs:
           tr -d '\r' < "$f" | sed 's/[[:space:]]*$//' > "$f.tmp" && mv "$f.tmp" "$f"
           if ! [ -s "$f" ]; then echo "module-ref.txt is empty"; exit 1; fi
 
-      # Render main.tf BEFORE linters/scanners
       - name: Read Module Ref
+        shell: bash
         run: |
+          set -euo pipefail
           if [ "${{ steps.envsel.outputs.env }}" = "production" ]; then
             echo "MODULE_REF=$(cat terraform-code/environments/production/module-ref.txt)" >> $GITHUB_ENV
           else
             echo "MODULE_REF=$(cat terraform-code/environments/staging/module-ref.txt)" >> $GITHUB_ENV
           fi
 
+      # Renders main.tf using your template. Template must use archive URLs like:
+      # https://github.com/rare-beauty/terraform-infrastructure/archive/__REF__.tar.gz//terraform/modules/<module>
       - name: Render main.tf from template
+        shell: bash
         run: |
+          set -euo pipefail
           sed "s/__REF__/${MODULE_REF}/g" terraform-code/stack/main.tf.tmpl > terraform-code/stack/main.tf
           if grep -q '__REF__' terraform-code/stack/main.tf; then
             echo "Template placeholder __REF__ still present after render"; exit 1
           fi
 
-      # NEW: Assert we do NOT have git:: sources & we DO have archive-style paths
-      - name: Assert rendered module sources are archive-style (no git::)
+      # Verify rendered sources: forbid git:: and require archive tarballs into //terraform/modules/
+      - name: Verify rendered module sources
+        shell: bash
         run: |
+          set -euo pipefail
           echo "--- MODULE_REF=${MODULE_REF} ---"
-          echo ">>> Showing first 160 lines of rendered main.tf"
+          echo ">>> First 160 lines of rendered main.tf"
           sed -n '1,160p' terraform-code/stack/main.tf || true
 
           echo ">>> Checking for git-style sources (must be NONE)"
           if grep -nE 'git::|\.git\?ref=' terraform-code/stack/main.tf; then
-            echo "❌ Found git-style module source(s) in terraform-code/stack/main.tf"
+            echo "❌ Found git-style module source(s) in rendered main.tf"
             exit 1
           fi
 
           echo ">>> Checking for archive-style sources (must be PRESENT)"
-          if ! grep -n 'github.com/rare-beauty/terraform-infrastructure//terraform/modules/' terraform-code/stack/main.tf; then
-            echo "❌ Expected archive-style sources missing in terraform-code/stack/main.tf"
-            exit 1
-          fi
+          # Must reference the archive tarball…
+          grep -qE 'https://github.com/rare-beauty/terraform-infrastructure/archive/.+\.tar\.gz' terraform-code/stack/main.tf
+          # …and use the modules subdir
+          grep -qE '//terraform/modules/' terraform-code/stack/main.tf
 
-      # NEW: List every .tf Terraform will read to catch stray files with old sources
+          # Ensure each module is present
+          for m in resourcegroup virtualnetwork subnet acr azurekeyvault aks rbac; do
+            grep -qE "https://github.com/rare-beauty/terraform-infrastructure/archive/.+\.tar\.gz//terraform/modules/${m}" terraform-code/stack/main.tf \
+              || { echo "❌ Missing module source for: ${m}"; exit 1; }
+          done
+          echo "✅ Archive-style module sources verified"
+
+      # Show every .tf Terraform will read, to catch stray files with old sources
       - name: List all .tf files Terraform will read
+        shell: bash
         run: |
+          set -euo pipefail
           echo ">>> All .tf files under terraform-code/stack:"
           find terraform-code/stack -type f -name '*.tf' -print \
-            -exec sh -c 'echo "--- {}"; sed -n "1,60p" "{}"' \;
+            -exec sh -c 'echo "--- {}"; sed -n "1,80p" "{}"' \;
 
-      # NEW: Nuke TF caches so old git URLs can't linger
+      # Clean caches so no stale module fetches survive
       - name: Clean Terraform caches
         working-directory: ${{ env.TF_DIR }}
         run: rm -rf .terraform .terraform.lock.hcl
@@ -133,7 +154,7 @@ jobs:
       - name: Setup TFLint
         uses: terraform-linters/setup-tflint@v4
 
-      # ---- TFLint (Dev/Staging): don't fail on warnings like ref=main ----
+      # Non-prod: allow leniency (e.g., not pinning)
       - name: Run TFLint (Dev/Staging)
         if: ${{ steps.envsel.outputs.env != 'production' }}
         working-directory: ${{ env.TF_DIR }}
@@ -141,7 +162,7 @@ jobs:
           tflint --init
           tflint --minimum-failure-severity=error
 
-      # ---- TFLint (Production): strict (should pass with tag/SHA) ----
+      # Prod: strict
       - name: Run TFLint (Production)
         if: ${{ steps.envsel.outputs.env == 'production' }}
         working-directory: ${{ env.TF_DIR }}
@@ -149,7 +170,7 @@ jobs:
           tflint --init
           tflint
 
-      # ---- Checkov (IaC source scan) split by env ----
+      # Checkov split by env (you can tweak skip list later)
       - name: Checkov (IaC source scan, Dev/Staging)
         if: ${{ steps.envsel.outputs.env != 'production' }}
         uses: bridgecrewio/checkov-action@v12
@@ -161,7 +182,6 @@ jobs:
           output_format: sarif
           output_file_path: results.sarif
           soft_fail: false
-          # Skip pinning + the other failing IDs only in non-prod
           skip_check: CKV_TF_1,CKV_TF_2,CKV_AZURE_163,CKV_AZURE_165,CKV_AZURE_166,CKV_AZURE_167,CKV_AZURE_164,CKV_AZURE_117,CKV_AZURE_116,CKV_AZURE_170,CKV_AZURE_226,CKV_AZURE_109,CKV2_AZURE_32
 
       - name: Checkov (IaC source scan, Production)
@@ -175,8 +195,8 @@ jobs:
           output_format: sarif
           output_file_path: results.sarif
           soft_fail: false
-      # -----------------------------------------------
 
+      # Init (upgrade modules only in non-prod)
       - name: Terraform Init (Dev/Staging)
         if: ${{ steps.envsel.outputs.env != 'production' }}
         working-directory: ${{ env.TF_DIR }}
@@ -217,7 +237,6 @@ jobs:
           output_format: sarif
           output_file_path: results-plan.sarif
           soft_fail: false
-          #skip_check: ${{ env.SKIP_CHECKS }}
 
       - name: Manual Approval for Production
         if: github.event_name == 'workflow_dispatch' && steps.envsel.outputs.env == 'production'
