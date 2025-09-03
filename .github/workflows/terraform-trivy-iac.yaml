@@ -126,9 +126,30 @@ jobs:
         working-directory: ${{ env.TF_DIR }}
         run: terraform validate
 
+      # - name: Terraform Plan
+      #   working-directory: ${{ env.TF_DIR }}
+      #   run: terraform plan -input=false -no-color -var-file="${{ env.TFVARS_FILE }}" -out=tfplan
+
       - name: Terraform Plan
         working-directory: ${{ env.TF_DIR }}
-        run: terraform plan -input=false -no-color -var-file="${{ env.TFVARS_FILE }}" -out=tfplan
+        shell: bash
+        run: |
+          # Avoid hidden flags from env
+          unset TF_CLI_ARGS TF_CLI_ARGS_plan
+
+          set +e
+          terraform plan -input=false -no-color \
+            -var-file="${{ env.TFVARS_FILE }}" \
+            -out=tfplan \
+            -detailed-exitcode
+          code=$?
+          echo "terraform plan exit code: $code"
+          # 0 = no changes, 2 = changes present (OK), 1 = real error
+          if [ $code -eq 1 ]; then
+            exit 1
+          fi
+          exit 0
+
 
       - name: Export plan to JSON
         working-directory: ${{ env.TF_DIR }}
