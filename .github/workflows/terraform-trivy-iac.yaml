@@ -77,18 +77,48 @@ jobs:
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       # 🔀 move rendering BEFORE lint/format/validate/plan
+      # - name: Read Module Ref
+      #   run: |
+      #     if [ "${{ steps.envsel.outputs.env }}" = "production" ]; then
+      #       echo "MODULE_REF=$(cat terraform-code/environments/production/module-ref.txt)" >> $GITHUB_ENV
+      #     else
+      #       echo "MODULE_REF=$(cat terraform-code/environments/staging/module-ref.txt)" >> $GITHUB_ENV
+      #     fi
+      #     # Fail fast if someone puts 'main' here
+      #     if [ "$MODULE_REF" = "main" ] || [ -z "$MODULE_REF" ]; then
+      #       echo "ERROR: MODULE_REF must be a tag or commit SHA, not 'main'." >&2
+      #       exit 1
+      #     fi
+
       - name: Read Module Ref
         run: |
           if [ "${{ steps.envsel.outputs.env }}" = "production" ]; then
-            echo "MODULE_REF=$(cat terraform-code/environments/production/module-ref.txt)" >> $GITHUB_ENV
+            REF_FILE="terraform-code/environments/production/module-ref.txt"
           else
-            echo "MODULE_REF=$(cat terraform-code/environments/staging/module-ref.txt)" >> $GITHUB_ENV
+            REF_FILE="terraform-code/environments/staging/module-ref.txt"
           fi
-          # Fail fast if someone puts 'main' here
-          if [ "$MODULE_REF" = "main" ] || [ -z "$MODULE_REF" ]; then
-            echo "ERROR: MODULE_REF must be a tag or commit SHA, not 'main'." >&2
+
+          if [ ! -f "$REF_FILE" ]; then
+            echo "ERROR: $REF_FILE does not exist." >&2
             exit 1
           fi
+
+          MODULE_REF="$(tr -d ' \t\r\n' < "$REF_FILE")"
+          echo "MODULE_REF=$MODULE_REF" >> "$GITHUB_ENV"
+
+          if [ "${{ steps.envsel.outputs.env }}" = "production" ]; then
+            # prod: MUST be a tag or commit SHA, not 'main'
+            if [ -z "$MODULE_REF" ] || [ "$MODULE_REF" = "main" ]; then
+              echo "ERROR: In production, MODULE_REF must be a tag or commit SHA (not 'main')." >&2
+              exit 1
+            fi
+          else
+            # staging: allow main (warn only)
+            if [ "$MODULE_REF" = "main" ]; then
+              echo "WARNING: Using 'main' for staging is allowed." >&2
+            fi
+          fi
+
 
       - name: Render main.tf from template
         run: |
