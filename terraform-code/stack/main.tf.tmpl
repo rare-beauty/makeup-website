@@ -30,6 +30,10 @@ module "subnet" {
   subnet_name             = var.cfg.subnet_name
   subnet_address_prefixes = var.cfg.subnet_address_prefixes
   #tags                    = local.tags
+  # new inputs
+  location   = module.resourcegroup.resource_group_location
+  create_nsg = true
+  # nsg_name = "my-custom-nsg"  # optional
 }
 
 #################################
