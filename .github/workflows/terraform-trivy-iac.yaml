@@ -29,21 +29,6 @@ jobs:
     environment: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || (github.ref_name == 'main' && 'production' || 'staging') }}
 
     env:
-      SKIP_CHECKS: >
-        CKV_AZURE_233,   # ACR zone redundancy (Premium)
-        CKV_AZURE_165,   # ACR geo-replication (Premium)
-        CKV_AZURE_237,   # ACR dedicated data endpoint (Premium)
-        CKV_AZURE_167,   # ACR retention policy (Premium in v3)
-        CKV_AZURE_163,   # ACR vuln scanning (Defender plan/policy)
-        CKV_AZURE_166,   # Quarantine/verified images (policy/process)
-        CKV_AZURE_164,   # Signed/trusted images (policy/process)
-        CKV_AZURE_4,     # AKS logging to Log Analytics
-        CKV_AZURE_117,   # AKS Disk Encryption Set (CMK/DES)
-        CKV_AZURE_170,   # AKS Paid SLA
-        CKV_AZURE_226,   # AKS Ephemeral OS
-        CKV_AZURE_227,   # AKS host/data encryption E2E
-        CKV2_AZURE_32    # Key Vault Private Endpoint
-
       ARM_CLIENT_ID:       ${{ secrets.AZURE_CLIENT_ID }}
       ARM_TENANT_ID:       ${{ secrets.AZURE_TENANT_ID }}
       ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
@@ -67,6 +52,7 @@ jobs:
           else
             echo "env=staging" >> $GITHUB_OUTPUT
           fi
+          echo "Selected env: $(cat $GITHUB_OUTPUT)"
 
       - name: Set TF_DIR
         run: echo "TF_DIR=terraform-code/stack" >> $GITHUB_ENV
@@ -102,6 +88,7 @@ jobs:
       - name: Render main.tf from template
         run: |
           sed "s#__REF__#${MODULE_REF}#g" terraform-code/stack/main.tf.tmpl > terraform-code/stack/main.tf
+          echo "Rendered main.tf (first 200 lines):"
           sed -n '1,200p' terraform-code/stack/main.tf
 
       # ✅ write format immediately after rendering
@@ -144,6 +131,17 @@ jobs:
       # - name: Terraform Plan
       #   working-directory: ${{ env.TF_DIR }}
       #   run: terraform plan -input=false -no-color -var-file="${{ env.TFVARS_FILE }}" -out=tfplan
+
+      # Make Checkov skip list explicit and WITHOUT comments/newlines
+      - name: Set Checkov skip list by env
+        run: |
+          if [ "${{ steps.envsel.outputs.env }}" = "production" ]; then
+            # In prod you can tighten this list or leave empty to enforce
+            echo "SKIP_CHECKS=CKV_AZURE_233,CKV_AZURE_165,CKV_AZURE_237,CKV_AZURE_167,CKV_AZURE_163,CKV_AZURE_166,CKV_AZURE_164,CKV_AZURE_170,CKV2_AZURE_32" >> $GITHUB_ENV
+          else
+            # Staging/dev: skip Premium/expensive items plus ones you decided to defer
+            echo "SKIP_CHECKS=CKV_AZURE_233,CKV_AZURE_165,CKV_AZURE_237,CKV_AZURE_167,CKV_AZURE_163,CKV_AZURE_166,CKV_AZURE_164,CKV_AZURE_4,CKV_AZURE_117,CKV_AZURE_170,CKV_AZURE_226,CKV_AZURE_227,CKV2_AZURE_32" >> $GITHUB_ENV
+          fi
 
       - name: Terraform Plan
         working-directory: ${{ env.TF_DIR }}
