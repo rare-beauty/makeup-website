@@ -134,21 +134,35 @@ jobs:
         working-directory: ${{ env.TF_DIR }}
         shell: bash
         run: |
-          # Avoid hidden flags from env
+          # Avoid hidden global flags
           unset TF_CLI_ARGS TF_CLI_ARGS_plan
 
+          # Show where we are and file perms (make sure tfplan is writable)
+          echo "PWD=$(pwd)"
+          ls -la
+
+          # Run plan; capture both stdout & stderr so we can see real errors
           set +e
           terraform plan -input=false -no-color \
             -var-file="${{ env.TFVARS_FILE }}" \
             -out=tfplan \
-            -detailed-exitcode
+            -detailed-exitcode \
+            -compact-warnings \
+            1>plan.stdout.log 2>plan.stderr.log
           code=$?
+
+          echo "----- terraform plan STDOUT -----"
+          tail -n +1 plan.stdout.log || true
+          echo "----- terraform plan STDERR -----"
+          tail -n +1 plan.stderr.log || true
           echo "terraform plan exit code: $code"
+
           # 0 = no changes, 2 = changes present (OK), 1 = real error
           if [ $code -eq 1 ]; then
             exit 1
           fi
           exit 0
+
 
 
       - name: Export plan to JSON
