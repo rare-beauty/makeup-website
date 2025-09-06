@@ -24,27 +24,39 @@ jobs:
           echo "acr_login=$REG" >> "$GITHUB_OUTPUT"
           echo "acr_name=$NAME"  >> "$GITHUB_OUTPUT"
 
-      # ✅ UPDATED: enable recursive scan for all Dockerfiles
       - name: Hadolint (Dockerfiles)
         if: ${{ hashFiles('**/Dockerfile') != '' }}
         uses: hadolint/hadolint-action@v3.1.0
         with:
           recursive: true
 
-      - uses: actions/setup-node@v4
+      - name: Use Node
         if: ${{ hashFiles('**/package.json') != '' }}
-        with: { node-version: '20' }
-      - if: ${{ hashFiles('**/package.json') != '' }}
-        run: npm ci
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # ✅ UPDATED: use npm ci if lockfile exists, else npm install
+      - name: Install deps (Node)
+        if: ${{ hashFiles('**/package.json') != '' }}
+        run: |
+          if [ -f package-lock.json ] || [ -f npm-shrinkwrap.json ]; then
+            npm ci
+          else
+            npm install --no-audit --no-fund
+          fi
+
       - if: ${{ hashFiles('**/package.json') != '' }}
         run: npm run format:check --if-present
       - if: ${{ hashFiles('**/package.json') != '' }}
         run: npm run lint --if-present
+
       - uses: azure/login@v1
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
       - run: az acr login --name ${{ steps.env.outputs.acr_name }}
       - run: docker build -t $IMAGE_NAME:staging .
       - run: |
@@ -66,27 +78,39 @@ jobs:
           echo "acr_login=$REG" >> "$GITHUB_OUTPUT"
           echo "acr_name=$NAME"  >> "$GITHUB_OUTPUT"
 
-      # ✅ UPDATED: enable recursive scan for all Dockerfiles
       - name: Hadolint (Dockerfiles)
         if: ${{ hashFiles('**/Dockerfile') != '' }}
         uses: hadolint/hadolint-action@v3.1.0
         with:
           recursive: true
 
-      - uses: actions/setup-node@v4
+      - name: Use Node
         if: ${{ hashFiles('**/package.json') != '' }}
-        with: { node-version: '20' }
-      - if: ${{ hashFiles('**/package.json') != '' }}
-        run: npm ci
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # ✅ UPDATED: use npm ci if lockfile exists, else npm install
+      - name: Install deps (Node)
+        if: ${{ hashFiles('**/package.json') != '' }}
+        run: |
+          if [ -f package-lock.json ] || [ -f npm-shrinkwrap.json ]; then
+            npm ci
+          else
+            npm install --no-audit --no-fund
+          fi
+
       - if: ${{ hashFiles('**/package.json') != '' }}
         run: npm run format:check --if-present
       - if: ${{ hashFiles('**/package.json') != '' }}
         run: npm run lint --if-present
+
       - uses: azure/login@v1
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
       - run: az acr login --name ${{ steps.env.outputs.acr_name }}
       - run: docker build -t $IMAGE_NAME:production .
       - run: |
