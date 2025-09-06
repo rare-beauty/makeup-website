@@ -16,6 +16,7 @@ jobs:
       IMAGE_NAME: myapp
     steps:
       - uses: actions/checkout@v3
+
       - id: env
         shell: bash
         run: |
@@ -31,25 +32,31 @@ jobs:
           recursive: true
 
       - name: Use Node
-        if: ${{ hashFiles('**/package.json') != '' }}
+        if: ${{ hashFiles('src/**/package.json') != '' }}
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
-      # ✅ UPDATED: use npm ci if lockfile exists, else npm install
-      - name: Install deps (Node)
-        if: ${{ hashFiles('**/package.json') != '' }}
+      # UPDATED: install/lint per service folder that has package.json
+      - name: Install deps + lint per service
+        if: ${{ hashFiles('src/**/package.json') != '' }}
+        shell: bash
         run: |
-          if [ -f package-lock.json ] || [ -f npm-shrinkwrap.json ]; then
-            npm ci
-          else
-            npm install --no-audit --no-fund
-          fi
-
-      - if: ${{ hashFiles('**/package.json') != '' }}
-        run: npm run format:check --if-present
-      - if: ${{ hashFiles('**/package.json') != '' }}
-        run: npm run lint --if-present
+          set -e
+          for svcdir in src/*; do
+            if [ -f "$svcdir/package.json" ]; then
+              echo " Installing in $svcdir"
+              cd "$svcdir"
+              if [ -f package-lock.json ] || [ -f npm-shrinkwrap.json ]; then
+                npm ci
+              else
+                npm install --no-audit --no-fund
+              fi
+              npm run format:check --if-present
+              npm run lint --if-present
+              cd - >/dev/null
+            fi
+          done
 
       - uses: azure/login@v1
         with:
@@ -58,10 +65,20 @@ jobs:
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - run: az acr login --name ${{ steps.env.outputs.acr_name }}
-      - run: docker build -t $IMAGE_NAME:staging .
-      - run: |
-          docker tag  $IMAGE_NAME:staging ${{ steps.env.outputs.acr_login }}/$IMAGE_NAME:staging
-          docker push ${{ steps.env.outputs.acr_login }}/$IMAGE_NAME:staging
+
+      # UPDATED: build & push one image per service that has a Dockerfile
+      - name: Build & push images (staging)
+        shell: bash
+        run: |
+          set -e
+          for svcdir in src/*; do
+            if [ -f "$svcdir/Dockerfile" ]; then
+              svc="$(basename "$svcdir")"
+              echo " Building $svc (staging)"
+              docker build -t "${{ steps.env.outputs.acr_login }}/$svc:staging" "$svcdir"
+              docker push "${{ steps.env.outputs.acr_login }}/$svc:staging"
+            fi
+          done
 
   production:
     if: ${{ github.ref == 'refs/heads/main' }}
@@ -70,6 +87,7 @@ jobs:
       IMAGE_NAME: myapp
     steps:
       - uses: actions/checkout@v3
+
       - id: env
         shell: bash
         run: |
@@ -85,25 +103,31 @@ jobs:
           recursive: true
 
       - name: Use Node
-        if: ${{ hashFiles('**/package.json') != '' }}
+        if: ${{ hashFiles('src/**/package.json') != '' }}
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
-      # ✅ UPDATED: use npm ci if lockfile exists, else npm install
-      - name: Install deps (Node)
-        if: ${{ hashFiles('**/package.json') != '' }}
+      # UPDATED: install/lint per service folder that has package.json
+      - name: Install deps + lint per service
+        if: ${{ hashFiles('src/**/package.json') != '' }}
+        shell: bash
         run: |
-          if [ -f package-lock.json ] || [ -f npm-shrinkwrap.json ]; then
-            npm ci
-          else
-            npm install --no-audit --no-fund
-          fi
-
-      - if: ${{ hashFiles('**/package.json') != '' }}
-        run: npm run format:check --if-present
-      - if: ${{ hashFiles('**/package.json') != '' }}
-        run: npm run lint --if-present
+          set -e
+          for svcdir in src/*; do
+            if [ -f "$svcdir/package.json" ]; then
+              echo " Installing in $svcdir"
+              cd "$svcdir"
+              if [ -f package-lock.json ] || [ -f npm-shrinkwrap.json ]; then
+                npm ci
+              else
+                npm install --no-audit --no-fund
+              fi
+              npm run format:check --if-present
+              npm run lint --if-present
+              cd - >/dev/null
+            fi
+          done
 
       - uses: azure/login@v1
         with:
@@ -112,7 +136,17 @@ jobs:
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - run: az acr login --name ${{ steps.env.outputs.acr_name }}
-      - run: docker build -t $IMAGE_NAME:production .
-      - run: |
-          docker tag  $IMAGE_NAME:production ${{ steps.env.outputs.acr_login }}/$IMAGE_NAME:production
-          docker push ${{ steps.env.outputs.acr_login }}/$IMAGE_NAME:production
+
+      # UPDATED: build & push one image per service that has a Dockerfile
+      - name: Build & push images (production)
+        shell: bash
+        run: |
+          set -e
+          for svcdir in src/*; do
+            if [ -f "$svcdir/Dockerfile" ]; then
+              svc="$(basename "$svcdir")"
+              echo " Building $svc (production)"
+              docker build -t "${{ steps.env.outputs.acr_login }}/$svc:production" "$svcdir"
+              docker push "${{ steps.env.outputs.acr_login }}/$svc:production"
+            fi
+          done
