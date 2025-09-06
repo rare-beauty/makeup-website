@@ -19,7 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      # OIDC login (same SP can serve both envs; ensure 2 federated creds: staging & production)
+      # Same SP for both envs; make sure the app has 2 federated creds (staging, production)
       - name: Azure Login via OIDC
         uses: azure/login@v2
         with:
@@ -27,20 +27,20 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      # Resolve ACR via env/repo secrets (name -> loginServer) with FQDN fallback
+      # ---- ACR resolve (staging) ----
       - id: env
         shell: bash
         run: |
           set -e
-          NAME="${{ secrets.ACR_NAME }}"                      # environment secret (preferred)
-          if [ -z "$NAME" ]; then NAME="${{ secrets.STAGING_ACR_NAME }}"; fi  # repo fallback
+          # Prefer environment secret (ACR_NAME). Fallbacks are repo secrets:
+          # STAGING_ACR_NAME (name) or STAGING_ACR_LOGIN (full FQDN).
+          NAME="${{ secrets.ACR_NAME }}"
+          if [ -z "$NAME" ]; then NAME="${{ secrets.STAGING_ACR_NAME }}"; fi
 
           REG=""
           if [ -n "$NAME" ]; then
             REG="$(az acr show -n "$NAME" --query loginServer -o tsv || true)"
           fi
-
-          # fallback: full FQDN stored as secret
           if [ -z "$REG" ]; then
             REG_FQDN="${{ secrets.STAGING_ACR_LOGIN }}"
             if [ -n "$REG_FQDN" ]; then
@@ -50,6 +50,10 @@ jobs:
           fi
 
           if [ -z "$NAME" ] || [ -z "$REG" ]; then
+            echo "::group::ACR debug"
+            az account show || true
+            az acr list --query "[].{name:name,login:loginServer}" -o table || true
+            echo "::endgroup::"
             echo "::error ::No ACR configured. Set environment secret ACR_NAME, or repo secret STAGING_ACR_NAME, or STAGING_ACR_LOGIN."
             exit 1
           fi
@@ -127,19 +131,18 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      # Resolve ACR (supports "not created yet" → skip build)
+      # ---- ACR resolve (production) with "not created yet" skip ----
       - id: env
         shell: bash
         run: |
           set -e
-          NAME="${{ secrets.ACR_NAME }}"                    # environment secret (preferred)
-          if [ -z "$NAME" ]; then NAME="${{ secrets.PROD_ACR_NAME }}"; fi   # repo fallback
+          NAME="${{ secrets.ACR_NAME }}"
+          if [ -z "$NAME" ]; then NAME="${{ secrets.PROD_ACR_NAME }}"; fi
 
           REG=""
           if [ -n "$NAME" ]; then
             REG="$(az acr show -n "$NAME" --query loginServer -o tsv || true)"
           fi
-
           if [ -z "$REG" ]; then
             REG_FQDN="${{ secrets.PROD_ACR_LOGIN }}"
             if [ -n "$REG_FQDN" ]; then
@@ -149,13 +152,10 @@ jobs:
           fi
 
           if [ -z "$NAME" ] && [ -z "$REG" ]; then
-            # You said infra for prod is created later by Terraform; skip cleanly until it exists.
             echo "::warning ::Production ACR not configured/available yet. Skipping production build."
             echo "skip_build=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-
-          # If we got a name but can't resolve it (ACR not created yet), skip as well.
           if [ -n "$NAME" ] && [ -z "$REG" ]; then
             echo "::warning ::ACR '$NAME' not found yet (Terraform not applied?). Skipping production build."
             echo "skip_build=true" >> "$GITHUB_OUTPUT"
