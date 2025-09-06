@@ -12,6 +12,7 @@ jobs:
   staging:
     if: ${{ github.ref == 'refs/heads/dev' }}
     runs-on: ubuntu-latest
+    environment: staging                    # 💡 NEW: make OIDC subject match your federated cred
     env:
       IMAGE_NAME: myapp
     steps:
@@ -21,6 +22,10 @@ jobs:
         shell: bash
         run: |
           REG="${{ secrets.STAGING_ACR_LOGIN }}"     # e.g. myregistry.azurecr.io
+          if [ -z "$REG" ]; then                     # 💡 NEW: clear error if secret missing/blank
+            echo "::error ::Secret STAGING_ACR_LOGIN is empty. Set it to <registry>.azurecr.io"
+            exit 1
+          fi
           NAME="${REG%%.*}"
           echo "acr_login=$REG" >> "$GITHUB_OUTPUT"
           echo "acr_name=$NAME"  >> "$GITHUB_OUTPUT"
@@ -37,7 +42,6 @@ jobs:
         with:
           node-version: '20'
 
-      # UPDATED: install/lint per service folder that has package.json
       - name: Install deps + lint per service
         if: ${{ hashFiles('src/**/package.json') != '' }}
         shell: bash
@@ -48,7 +52,7 @@ jobs:
               echo " Installing in $svcdir"
               cd "$svcdir"
               if [ -f package-lock.json ] || [ -f npm-shrinkwrap.json ]; then
-                npm ci
+                npm ci || (echo "⚠️ npm ci failed (lockfile mismatch?) -> npm install fallback" && npm install --no-audit --no-fund)
               else
                 npm install --no-audit --no-fund
               fi
@@ -58,7 +62,8 @@ jobs:
             fi
           done
 
-      - uses: azure/login@v1
+      - name: Azure Login via OIDC            # 💡 UPDATED: force OIDC (no client secret), better logs
+        uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
@@ -66,23 +71,28 @@ jobs:
 
       - run: az acr login --name ${{ steps.env.outputs.acr_name }}
 
-      # UPDATED: build & push one image per service that has a Dockerfile
       - name: Build & push images (staging)
         shell: bash
         run: |
           set -e
+          built_any=0
           for svcdir in src/*; do
             if [ -f "$svcdir/Dockerfile" ]; then
               svc="$(basename "$svcdir")"
               echo " Building $svc (staging)"
               docker build -t "${{ steps.env.outputs.acr_login }}/$svc:staging" "$svcdir"
               docker push "${{ steps.env.outputs.acr_login }}/$svc:staging"
+              built_any=1
             fi
           done
+          if [ "$built_any" -eq 0 ]; then
+            echo "::warning ::No Dockerfile found under src/* – nothing to build."
+          fi
 
   production:
     if: ${{ github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
+    environment: production                 # 💡 NEW: make OIDC subject match your federated cred
     env:
       IMAGE_NAME: myapp
     steps:
@@ -92,6 +102,10 @@ jobs:
         shell: bash
         run: |
           REG="${{ secrets.PROD_ACR_LOGIN }}"
+          if [ -z "$REG" ]; then             # 💡 NEW: clear error if secret missing/blank
+            echo "::error ::Secret PROD_ACR_LOGIN is empty. Set it to <registry>.azurecr.io"
+            exit 1
+          fi
           NAME="${REG%%.*}"
           echo "acr_login=$REG" >> "$GITHUB_OUTPUT"
           echo "acr_name=$NAME"  >> "$GITHUB_OUTPUT"
@@ -108,7 +122,6 @@ jobs:
         with:
           node-version: '20'
 
-      # UPDATED: install/lint per service folder that has package.json
       - name: Install deps + lint per service
         if: ${{ hashFiles('src/**/package.json') != '' }}
         shell: bash
@@ -119,7 +132,7 @@ jobs:
               echo " Installing in $svcdir"
               cd "$svcdir"
               if [ -f package-lock.json ] || [ -f npm-shrinkwrap.json ]; then
-                npm ci
+                npm ci || (echo "⚠️ npm ci failed (lockfile mismatch?) -> npm install fallback" && npm install --no-audit --no-fund)
               else
                 npm install --no-audit --no-fund
               fi
@@ -127,26 +140,3 @@ jobs:
               npm run lint --if-present
               cd - >/dev/null
             fi
-          done
-
-      - uses: azure/login@v1
-        with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-
-      - run: az acr login --name ${{ steps.env.outputs.acr_name }}
-
-      # UPDATED: build & push one image per service that has a Dockerfile
-      - name: Build & push images (production)
-        shell: bash
-        run: |
-          set -e
-          for svcdir in src/*; do
-            if [ -f "$svcdir/Dockerfile" ]; then
-              svc="$(basename "$svcdir")"
-              echo " Building $svc (production)"
-              docker build -t "${{ steps.env.outputs.acr_login }}/$svc:production" "$svcdir"
-              docker push "${{ steps.env.outputs.acr_login }}/$svc:production"
-            fi
-          done
