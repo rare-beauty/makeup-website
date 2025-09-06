@@ -47,7 +47,7 @@ module "acr" {
   sku                 = var.cfg.acr_sku
   admin_enabled       = false # ✅ secure for staging/prod
  # tags                = local.tags
-  public_network_access_enabled = false
+  public_network_access_enabled = var.cfg.acr_sku == "Premium" ? false : true
 }
 
 #################################
@@ -86,6 +86,7 @@ module "aks" {
   node_count  = var.cfg.node_count
   vm_size     = var.cfg.node_vm_size
   host_encryption_enabled = true
+  local_account_disabled = false
   environment = var.cfg.environment
 
   # Networking & ACR Integration - 
