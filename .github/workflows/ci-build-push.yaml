@@ -9,6 +9,9 @@ permissions:
   contents: read
 
 jobs:
+  # ============================
+  # STAGING (runs on branch: dev)
+  # ============================
   staging:
     if: ${{ github.ref == 'refs/heads/dev' }}
     runs-on: ubuntu-latest
@@ -19,7 +22,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      # Same SP for both envs; make sure the app has 2 federated creds (staging, production)
+      # OIDC login (same SP can serve both envs; ensure a federated cred exists)
       - name: Azure Login via OIDC
         uses: azure/login@v2
         with:
@@ -27,20 +30,23 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      # ---- ACR resolve (staging) ----
-      - id: env
+      # Resolve ACR:
+      # 1) environment secret ACR_NAME (preferred)
+      # 2) repo secret STAGING_ACR_NAME (name)
+      # 3) repo secret STAGING_ACR_LOGIN (full FQDN)
+      - name: Resolve ACR (staging)
+        id: env
         shell: bash
         run: |
           set -e
-          # Prefer environment secret (ACR_NAME). Fallbacks are repo secrets:
-          # STAGING_ACR_NAME (name) or STAGING_ACR_LOGIN (full FQDN).
-          NAME="${{ secrets.ACR_NAME }}"
+          NAME="${{ secrets.ACR_NAME || vars.ACR_NAME }}"
           if [ -z "$NAME" ]; then NAME="${{ secrets.STAGING_ACR_NAME }}"; fi
 
           REG=""
           if [ -n "$NAME" ]; then
             REG="$(az acr show -n "$NAME" --query loginServer -o tsv || true)"
           fi
+
           if [ -z "$REG" ]; then
             REG_FQDN="${{ secrets.STAGING_ACR_LOGIN }}"
             if [ -n "$REG_FQDN" ]; then
@@ -50,11 +56,7 @@ jobs:
           fi
 
           if [ -z "$NAME" ] || [ -z "$REG" ]; then
-            echo "::group::ACR debug"
-            az account show || true
-            az acr list --query "[].{name:name,login:loginServer}" -o table || true
-            echo "::endgroup::"
-            echo "::error ::No ACR configured. Set environment secret ACR_NAME, or repo secret STAGING_ACR_NAME, or STAGING_ACR_LOGIN."
+            echo "::error ::No ACR configured. Set environment secret 'ACR_NAME' (preferred) OR repo secret 'STAGING_ACR_NAME' or 'STAGING_ACR_LOGIN'."
             exit 1
           fi
 
@@ -67,7 +69,7 @@ jobs:
         with:
           recursive: true
 
-      - name: Use Node
+      - name: Use Node (only if any package.json exist under src/*)
         if: ${{ hashFiles('src/**/package.json') != '' }}
         uses: actions/setup-node@v4
         with:
@@ -83,7 +85,7 @@ jobs:
               echo "📦 Installing in $svcdir"
               cd "$svcdir"
               if [ -f package-lock.json ] || [ -f npm-shrinkwrap.json ]; then
-                npm ci || (echo "⚠️ npm ci failed (lockfile mismatch?) → npm install fallback" && npm install --no-audit --no-fund)
+                npm ci || (echo "⚠️ npm ci failed → npm install fallback" && npm install --no-audit --no-fund)
               else
                 npm install --no-audit --no-fund
               fi
@@ -114,6 +116,9 @@ jobs:
             echo "::warning ::No Dockerfile found under src/* – nothing to build."
           fi
 
+  # ==============================
+  # PRODUCTION (runs on branch: main)
+  # ==============================
   production:
     if: ${{ github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
@@ -131,18 +136,20 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      # ---- ACR resolve (production) with "not created yet" skip ----
-      - id: env
+      # Same resolution pattern; if prod infra isn't created yet we SKIP cleanly
+      - name: Resolve ACR (production)
+        id: env
         shell: bash
         run: |
           set -e
-          NAME="${{ secrets.ACR_NAME }}"
+          NAME="${{ secrets.ACR_NAME || vars.ACR_NAME }}"
           if [ -z "$NAME" ]; then NAME="${{ secrets.PROD_ACR_NAME }}"; fi
 
           REG=""
           if [ -n "$NAME" ]; then
             REG="$(az acr show -n "$NAME" --query loginServer -o tsv || true)"
           fi
+
           if [ -z "$REG" ]; then
             REG_FQDN="${{ secrets.PROD_ACR_LOGIN }}"
             if [ -n "$REG_FQDN" ]; then
@@ -156,6 +163,7 @@ jobs:
             echo "skip_build=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
+
           if [ -n "$NAME" ] && [ -z "$REG" ]; then
             echo "::warning ::ACR '$NAME' not found yet (Terraform not applied?). Skipping production build."
             echo "skip_build=true" >> "$GITHUB_OUTPUT"
@@ -172,7 +180,7 @@ jobs:
         with:
           recursive: true
 
-      - name: Use Node
+      - name: Use Node (only if any package.json exist under src/*)
         if: ${{ steps.env.outputs.skip_build != 'true' && hashFiles('src/**/package.json') != '' }}
         uses: actions/setup-node@v4
         with:
@@ -188,7 +196,7 @@ jobs:
               echo "📦 Installing in $svcdir"
               cd "$svcdir"
               if [ -f package-lock.json ] || [ -f npm-shrinkwrap.json ]; then
-                npm ci || (echo "⚠️ npm ci failed (lockfile mismatch?) → npm install fallback" && npm install --no-audit --no-fund)
+                npm ci || (echo "⚠️ npm ci failed → npm install fallback" && npm install --no-audit --no-fund)
               else
                 npm install --no-audit --no-fund
               fi
