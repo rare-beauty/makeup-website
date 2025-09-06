@@ -23,8 +23,14 @@ jobs:
           NAME="${REG%%.*}"
           echo "acr_login=$REG" >> "$GITHUB_OUTPUT"
           echo "acr_name=$NAME"  >> "$GITHUB_OUTPUT"
-      - uses: hadolint/hadolint-action@v3.1.0
+
+      # ✅ UPDATED: enable recursive scan for all Dockerfiles
+      - name: Hadolint (Dockerfiles)
         if: ${{ hashFiles('**/Dockerfile') != '' }}
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          recursive: true
+
       - uses: actions/setup-node@v4
         if: ${{ hashFiles('**/package.json') != '' }}
         with: { node-version: '20' }
@@ -59,8 +65,14 @@ jobs:
           NAME="${REG%%.*}"
           echo "acr_login=$REG" >> "$GITHUB_OUTPUT"
           echo "acr_name=$NAME"  >> "$GITHUB_OUTPUT"
-      - uses: hadolint/hadolint-action@v3.1.0
+
+      # ✅ UPDATED: enable recursive scan for all Dockerfiles
+      - name: Hadolint (Dockerfiles)
         if: ${{ hashFiles('**/Dockerfile') != '' }}
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          recursive: true
+
       - uses: actions/setup-node@v4
         if: ${{ hashFiles('**/package.json') != '' }}
         with: { node-version: '20' }
