@@ -65,6 +65,11 @@ module "keyvault" {
   soft_delete_retention_days = 7
   public_network_access_enabled = false
   #tags                       = local.tags
+
+  kv_network_default_action = "Deny"
+  kv_bypass                 = "AzureServices"
+  kv_ip_rules               = []        # optional: add office/CICD egress CIDRs later
+  kv_vnet_subnet_ids        = []        # optional: add private endpoint subnet later
 }
 
 #################################
@@ -86,6 +91,7 @@ module "aks" {
   # Networking & ACR Integration - 
   vnet_subnet_id = module.subnet.subnet_id
   acr_id         = module.acr.acr_id
+  enable_azure_policy = true
   #log_analytics_workspace_id = var.cfg.log_analytics_workspace_id
   #tags           = local.tags
 }
