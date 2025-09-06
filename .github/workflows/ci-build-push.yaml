@@ -19,7 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      # Resolve ACR by name from environment secret, then get its login server
+      # OIDC login (same SP can serve both envs; ensure 2 federated creds: staging & production)
       - name: Azure Login via OIDC
         uses: azure/login@v2
         with:
@@ -27,21 +27,35 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
+      # Resolve ACR via env/repo secrets (name -> loginServer) with FQDN fallback
       - id: env
         shell: bash
         run: |
-          if [ -z "${{ secrets.ACR_NAME }}" ]; then
-            echo "::error ::Environment secret ACR_NAME is empty. Set it to your ACR name (e.g. makeup-stg-acr)."
-            exit 1
+          set -e
+          NAME="${{ secrets.ACR_NAME }}"                      # environment secret (preferred)
+          if [ -z "$NAME" ]; then NAME="${{ secrets.STAGING_ACR_NAME }}"; fi  # repo fallback
+
+          REG=""
+          if [ -n "$NAME" ]; then
+            REG="$(az acr show -n "$NAME" --query loginServer -o tsv || true)"
           fi
-          ACR_NAME="${{ secrets.ACR_NAME }}"
-          REG="$(az acr show -n "$ACR_NAME" --query loginServer -o tsv)"
+
+          # fallback: full FQDN stored as secret
           if [ -z "$REG" ]; then
-            echo "::error ::Could not resolve login server for ACR '$ACR_NAME'. Check the name and permissions."
+            REG_FQDN="${{ secrets.STAGING_ACR_LOGIN }}"
+            if [ -n "$REG_FQDN" ]; then
+              REG="$REG_FQDN"
+              NAME="${REG%%.*}"
+            fi
+          fi
+
+          if [ -z "$NAME" ] || [ -z "$REG" ]; then
+            echo "::error ::No ACR configured. Set environment secret ACR_NAME, or repo secret STAGING_ACR_NAME, or STAGING_ACR_LOGIN."
             exit 1
           fi
-          echo "acr_name=$ACR_NAME"  >> "$GITHUB_OUTPUT"
-          echo "acr_login=$REG"      >> "$GITHUB_OUTPUT"
+
+          echo "acr_name=$NAME"  >> "$GITHUB_OUTPUT"
+          echo "acr_login=$REG"  >> "$GITHUB_OUTPUT"
 
       - name: Hadolint (Dockerfiles)
         if: ${{ hashFiles('**/Dockerfile') != '' }}
@@ -106,7 +120,6 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      # Resolve ACR by name from environment secret, then get its login server
       - name: Azure Login via OIDC
         uses: azure/login@v2
         with:
@@ -114,36 +127,59 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
+      # Resolve ACR (supports "not created yet" → skip build)
       - id: env
         shell: bash
         run: |
-          if [ -z "${{ secrets.ACR_NAME }}" ]; then
-            echo "::error ::Environment secret ACR_NAME is empty. Set it to your ACR name (e.g. makeup-prod-acr)."
-            exit 1
+          set -e
+          NAME="${{ secrets.ACR_NAME }}"                    # environment secret (preferred)
+          if [ -z "$NAME" ]; then NAME="${{ secrets.PROD_ACR_NAME }}"; fi   # repo fallback
+
+          REG=""
+          if [ -n "$NAME" ]; then
+            REG="$(az acr show -n "$NAME" --query loginServer -o tsv || true)"
           fi
-          ACR_NAME="${{ secrets.ACR_NAME }}"
-          REG="$(az acr show -n "$ACR_NAME" --query loginServer -o tsv)"
+
           if [ -z "$REG" ]; then
-            echo "::error ::Could not resolve login server for ACR '$ACR_NAME'. Check the name and permissions."
-            exit 1
+            REG_FQDN="${{ secrets.PROD_ACR_LOGIN }}"
+            if [ -n "$REG_FQDN" ]; then
+              REG="$REG_FQDN"
+              NAME="${REG%%.*}"
+            fi
           fi
-          echo "acr_name=$ACR_NAME"  >> "$GITHUB_OUTPUT"
-          echo "acr_login=$REG"      >> "$GITHUB_OUTPUT"
+
+          if [ -z "$NAME" ] && [ -z "$REG" ]; then
+            # You said infra for prod is created later by Terraform; skip cleanly until it exists.
+            echo "::warning ::Production ACR not configured/available yet. Skipping production build."
+            echo "skip_build=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # If we got a name but can't resolve it (ACR not created yet), skip as well.
+          if [ -n "$NAME" ] && [ -z "$REG" ]; then
+            echo "::warning ::ACR '$NAME' not found yet (Terraform not applied?). Skipping production build."
+            echo "skip_build=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "skip_build=false"   >> "$GITHUB_OUTPUT"
+          echo "acr_name=$NAME"     >> "$GITHUB_OUTPUT"
+          echo "acr_login=$REG"     >> "$GITHUB_OUTPUT"
 
       - name: Hadolint (Dockerfiles)
-        if: ${{ hashFiles('**/Dockerfile') != '' }}
+        if: ${{ steps.env.outputs.skip_build != 'true' && hashFiles('**/Dockerfile') != '' }}
         uses: hadolint/hadolint-action@v3.1.0
         with:
           recursive: true
 
       - name: Use Node
-        if: ${{ hashFiles('src/**/package.json') != '' }}
+        if: ${{ steps.env.outputs.skip_build != 'true' && hashFiles('src/**/package.json') != '' }}
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
       - name: Install deps + lint per service
-        if: ${{ hashFiles('src/**/package.json') != '' }}
+        if: ${{ steps.env.outputs.skip_build != 'true' && hashFiles('src/**/package.json') != '' }}
         shell: bash
         run: |
           set -e
@@ -163,9 +199,11 @@ jobs:
           done
 
       - name: ACR Docker login
+        if: ${{ steps.env.outputs.skip_build != 'true' }}
         run: az acr login --name ${{ steps.env.outputs.acr_name }}
 
       - name: Build & push images (production)
+        if: ${{ steps.env.outputs.skip_build != 'true' }}
         shell: bash
         run: |
           set -e
