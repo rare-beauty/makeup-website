@@ -12,23 +12,36 @@ jobs:
   staging:
     if: ${{ github.ref == 'refs/heads/dev' }}
     runs-on: ubuntu-latest
-    environment: staging                    # 💡 NEW: make OIDC subject match your federated cred
+    environment: staging
     env:
       IMAGE_NAME: myapp
+
     steps:
       - uses: actions/checkout@v3
+
+      # Resolve ACR by name from environment secret, then get its login server
+      - name: Azure Login via OIDC
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - id: env
         shell: bash
         run: |
-          REG="${{ secrets.STAGING_ACR_LOGIN }}"     # e.g. myregistry.azurecr.io
-          if [ -z "$REG" ]; then                     # 💡 NEW: clear error if secret missing/blank
-            echo "::error ::Secret STAGING_ACR_LOGIN is empty. Set it to <registry>.azurecr.io"
+          if [ -z "${{ secrets.ACR_NAME }}" ]; then
+            echo "::error ::Environment secret ACR_NAME is empty. Set it to your ACR name (e.g. makeup-stg-acr)."
             exit 1
           fi
-          NAME="${REG%%.*}"
-          echo "acr_login=$REG" >> "$GITHUB_OUTPUT"
-          echo "acr_name=$NAME"  >> "$GITHUB_OUTPUT"
+          ACR_NAME="${{ secrets.ACR_NAME }}"
+          REG="$(az acr show -n "$ACR_NAME" --query loginServer -o tsv)"
+          if [ -z "$REG" ]; then
+            echo "::error ::Could not resolve login server for ACR '$ACR_NAME'. Check the name and permissions."
+            exit 1
+          fi
+          echo "acr_name=$ACR_NAME"  >> "$GITHUB_OUTPUT"
+          echo "acr_login=$REG"      >> "$GITHUB_OUTPUT"
 
       - name: Hadolint (Dockerfiles)
         if: ${{ hashFiles('**/Dockerfile') != '' }}
@@ -49,10 +62,10 @@ jobs:
           set -e
           for svcdir in src/*; do
             if [ -f "$svcdir/package.json" ]; then
-              echo " Installing in $svcdir"
+              echo "📦 Installing in $svcdir"
               cd "$svcdir"
               if [ -f package-lock.json ] || [ -f npm-shrinkwrap.json ]; then
-                npm ci || (echo "⚠️ npm ci failed (lockfile mismatch?) -> npm install fallback" && npm install --no-audit --no-fund)
+                npm ci || (echo "⚠️ npm ci failed (lockfile mismatch?) → npm install fallback" && npm install --no-audit --no-fund)
               else
                 npm install --no-audit --no-fund
               fi
@@ -62,14 +75,8 @@ jobs:
             fi
           done
 
-      - name: Azure Login via OIDC            # 💡 UPDATED: force OIDC (no client secret), better logs
-        uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-
-      - run: az acr login --name ${{ steps.env.outputs.acr_name }}
+      - name: ACR Docker login
+        run: az acr login --name ${{ steps.env.outputs.acr_name }}
 
       - name: Build & push images (staging)
         shell: bash
@@ -79,7 +86,7 @@ jobs:
           for svcdir in src/*; do
             if [ -f "$svcdir/Dockerfile" ]; then
               svc="$(basename "$svcdir")"
-              echo " Building $svc (staging)"
+              echo "🐳 Building $svc (staging)"
               docker build -t "${{ steps.env.outputs.acr_login }}/$svc:staging" "$svcdir"
               docker push "${{ steps.env.outputs.acr_login }}/$svc:staging"
               built_any=1
@@ -92,23 +99,36 @@ jobs:
   production:
     if: ${{ github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
-    environment: production                 # 💡 NEW: make OIDC subject match your federated cred
+    environment: production
     env:
       IMAGE_NAME: myapp
+
     steps:
       - uses: actions/checkout@v3
+
+      # Resolve ACR by name from environment secret, then get its login server
+      - name: Azure Login via OIDC
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - id: env
         shell: bash
         run: |
-          REG="${{ secrets.PROD_ACR_LOGIN }}"
-          if [ -z "$REG" ]; then             # 💡 NEW: clear error if secret missing/blank
-            echo "::error ::Secret PROD_ACR_LOGIN is empty. Set it to <registry>.azurecr.io"
+          if [ -z "${{ secrets.ACR_NAME }}" ]; then
+            echo "::error ::Environment secret ACR_NAME is empty. Set it to your ACR name (e.g. makeup-prod-acr)."
             exit 1
           fi
-          NAME="${REG%%.*}"
-          echo "acr_login=$REG" >> "$GITHUB_OUTPUT"
-          echo "acr_name=$NAME"  >> "$GITHUB_OUTPUT"
+          ACR_NAME="${{ secrets.ACR_NAME }}"
+          REG="$(az acr show -n "$ACR_NAME" --query loginServer -o tsv)"
+          if [ -z "$REG" ]; then
+            echo "::error ::Could not resolve login server for ACR '$ACR_NAME'. Check the name and permissions."
+            exit 1
+          fi
+          echo "acr_name=$ACR_NAME"  >> "$GITHUB_OUTPUT"
+          echo "acr_login=$REG"      >> "$GITHUB_OUTPUT"
 
       - name: Hadolint (Dockerfiles)
         if: ${{ hashFiles('**/Dockerfile') != '' }}
@@ -129,10 +149,10 @@ jobs:
           set -e
           for svcdir in src/*; do
             if [ -f "$svcdir/package.json" ]; then
-              echo " Installing in $svcdir"
+              echo "📦 Installing in $svcdir"
               cd "$svcdir"
               if [ -f package-lock.json ] || [ -f npm-shrinkwrap.json ]; then
-                npm ci || (echo "⚠️ npm ci failed (lockfile mismatch?) -> npm install fallback" && npm install --no-audit --no-fund)
+                npm ci || (echo "⚠️ npm ci failed (lockfile mismatch?) → npm install fallback" && npm install --no-audit --no-fund)
               else
                 npm install --no-audit --no-fund
               fi
@@ -140,3 +160,25 @@ jobs:
               npm run lint --if-present
               cd - >/dev/null
             fi
+          done
+
+      - name: ACR Docker login
+        run: az acr login --name ${{ steps.env.outputs.acr_name }}
+
+      - name: Build & push images (production)
+        shell: bash
+        run: |
+          set -e
+          built_any=0
+          for svcdir in src/*; do
+            if [ -f "$svcdir/Dockerfile" ]; then
+              svc="$(basename "$svcdir")"
+              echo "🐳 Building $svc (production)"
+              docker build -t "${{ steps.env.outputs.acr_login }}/$svc:production" "$svcdir"
+              docker push "${{ steps.env.outputs.acr_login }}/$svc:production"
+              built_any=1
+            fi
+          done
+          if [ "$built_any" -eq 0 ]; then
+            echo "::warning ::No Dockerfile found under src/* – nothing to build."
+          fi
