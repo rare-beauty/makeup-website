@@ -103,6 +103,7 @@ module "aks" {
 module "rbac" {
   source = "https://github.com/rare-beauty/terraform-infrastructure/archive/__REF__.zip//terraform-infrastructure-__REF__/terraform/modules/rbac"
   #tags   = local.tags
+  enabled   = var.cfg.environment == "production"
   assignments = [
     # AKS can pull images from ACR
     {
