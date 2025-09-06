@@ -3,86 +3,80 @@ name: Build, Scan, Push (ACR)
 on:
   push:
     branches: [ main, dev ]
-  # workflow_run:
-  #   workflows: ["Terraform Pipeline"]
-  #   types: [completed]
-  #   branches: [ main, dev ]
 
 permissions:
   id-token: write
   contents: read
 
 jobs:
-  ci-cd:
-    # Run staging only on dev, production only on main
-    if: ${{ (github.ref == 'refs/heads/dev' && matrix.environment == 'staging') || (github.ref == 'refs/heads/main' && matrix.environment == 'production') }}
+  staging:
+    if: ${{ github.ref == 'refs/heads/dev' }}
     runs-on: ubuntu-latest
-
-    strategy:
-      matrix:
-        environment: [staging, production]
-
     env:
       IMAGE_NAME: myapp
-
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v3
-
-      - name: Set Environment-Specific Variables
-        id: env
+      - uses: actions/checkout@v3
+      - id: env
         shell: bash
         run: |
-          if [[ "${{ matrix.environment }}" == "staging" ]]; then
-            REG="${{ secrets.STAGING_ACR_LOGIN }}"   # e.g. myregistry.azurecr.io
-          else
-            REG="${{ secrets.PROD_ACR_LOGIN }}"
-          fi
-          NAME="${REG%%.*}"                          # -> myregistry
+          REG="${{ secrets.STAGING_ACR_LOGIN }}"     # e.g. myregistry.azurecr.io
+          NAME="${REG%%.*}"
           echo "acr_login=$REG" >> "$GITHUB_OUTPUT"
           echo "acr_name=$NAME"  >> "$GITHUB_OUTPUT"
-
-      # ---------- LINT (only Dockerfile + Node) ----------
-      - name: Hadolint (Dockerfile)
-        if: hashFiles('**/Dockerfile') != ''
-        uses: hadolint/hadolint-action@v3.1.0
-
-      - name: Use Node
-        if: hashFiles('**/package.json') != ''
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Install deps (Node)
-        if: hashFiles('**/package.json') != ''
+      - uses: hadolint/hadolint-action@v3.1.0
+        if: ${{ hashFiles('**/Dockerfile') != '' }}
+      - uses: actions/setup-node@v4
+        if: ${{ hashFiles('**/package.json') != '' }}
+        with: { node-version: '20' }
+      - if: ${{ hashFiles('**/package.json') != '' }}
         run: npm ci
-
-      - name: Format check (Prettier)
-        if: hashFiles('**/package.json') != ''
+      - if: ${{ hashFiles('**/package.json') != '' }}
         run: npm run format:check --if-present
-
-      - name: Lint (ESLint)
-        if: hashFiles('**/package.json') != ''
+      - if: ${{ hashFiles('**/package.json') != '' }}
         run: npm run lint --if-present
-      # ---------- END LINT ----------
-
-      - name: Azure Login via OIDC
-        uses: azure/login@v1
+      - uses: azure/login@v1
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - run: az acr login --name ${{ steps.env.outputs.acr_name }}
+      - run: docker build -t $IMAGE_NAME:staging .
+      - run: |
+          docker tag  $IMAGE_NAME:staging ${{ steps.env.outputs.acr_login }}/$IMAGE_NAME:staging
+          docker push ${{ steps.env.outputs.acr_login }}/$IMAGE_NAME:staging
 
-      - name: Login to ACR
-        run: az acr login --name ${{ steps.env.outputs.acr_name }}
-
-      # - name: Login to JFrog
-      #   run: echo "${{ secrets.JFROG_PASSWORD }}" | docker login ${{ secrets.JFROG_REGISTRY }} -u ${{ secrets.JFROG_USERNAME }} --password-stdin
-
-      - name: Build Docker Image
-        run: docker build -t $IMAGE_NAME:${{ matrix.environment }} .
-
-      - name: Push to ACR
+  production:
+    if: ${{ github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    env:
+      IMAGE_NAME: myapp
+    steps:
+      - uses: actions/checkout@v3
+      - id: env
+        shell: bash
         run: |
-          docker tag $IMAGE_NAME:${{ matrix.environment }} ${{ steps.env.outputs.acr_login }}/$IMAGE_NAME:${{ matrix.environment }}
-          docker push ${{ steps.env.outputs.acr_login }}/$IMAGE_NAME:${{ matrix.environment }}
+          REG="${{ secrets.PROD_ACR_LOGIN }}"
+          NAME="${REG%%.*}"
+          echo "acr_login=$REG" >> "$GITHUB_OUTPUT"
+          echo "acr_name=$NAME"  >> "$GITHUB_OUTPUT"
+      - uses: hadolint/hadolint-action@v3.1.0
+        if: ${{ hashFiles('**/Dockerfile') != '' }}
+      - uses: actions/setup-node@v4
+        if: ${{ hashFiles('**/package.json') != '' }}
+        with: { node-version: '20' }
+      - if: ${{ hashFiles('**/package.json') != '' }}
+        run: npm ci
+      - if: ${{ hashFiles('**/package.json') != '' }}
+        run: npm run format:check --if-present
+      - if: ${{ hashFiles('**/package.json') != '' }}
+        run: npm run lint --if-present
+      - uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - run: az acr login --name ${{ steps.env.outputs.acr_name }}
+      - run: docker build -t $IMAGE_NAME:production .
+      - run: |
+          docker tag  $IMAGE_NAME:production ${{ steps.env.outputs.acr_login }}/$IMAGE_NAME:production
+          docker push ${{ steps.env.outputs.acr_login }}/$IMAGE_NAME:production
