@@ -9,72 +9,55 @@ permissions:
   contents: read
 
 jobs:
-  # ============================
-  # STAGING (runs on branch: dev)
-  # ============================
+  # ===================== STAGING (dev branch) =====================
   staging:
     if: ${{ github.ref == 'refs/heads/dev' }}
     runs-on: ubuntu-latest
-    environment: staging
+    environment: staging               # uses env-scoped secrets
     env:
       IMAGE_NAME: myapp
 
     steps:
       - uses: actions/checkout@v3
 
-      # OIDC login (same SP can serve both envs; ensure a federated cred exists)
+      # 1) OIDC login (uses env secret AZURE_CLIENT_ID + repo secrets for tenant/sub)
       - name: Azure Login via OIDC
         uses: azure/login@v2
         with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}           # env secret (staging)
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}           # repo secret (shared)
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }} # repo secret (shared)
 
-      # Resolve ACR:
-      # 1) environment secret ACR_NAME (preferred)
-      # 2) repo secret STAGING_ACR_NAME (name)
-      # 3) repo secret STAGING_ACR_LOGIN (full FQDN)
+      # 2) Resolve ACR (env secret ACR_NAME → login server)
       - name: Resolve ACR (staging)
-        id: env
+        id: acr
         shell: bash
         run: |
           set -e
-          NAME="${{ secrets.ACR_NAME || vars.ACR_NAME }}"
-          if [ -z "$NAME" ]; then NAME="${{ secrets.STAGING_ACR_NAME }}"; fi
-
-          REG=""
-          if [ -n "$NAME" ]; then
-            REG="$(az acr show -n "$NAME" --query loginServer -o tsv || true)"
-          fi
-
-          if [ -z "$REG" ]; then
-            REG_FQDN="${{ secrets.STAGING_ACR_LOGIN }}"
-            if [ -n "$REG_FQDN" ]; then
-              REG="$REG_FQDN"
-              NAME="${REG%%.*}"
-            fi
-          fi
-
-          if [ -z "$NAME" ] || [ -z "$REG" ]; then
-            echo "::error ::No ACR configured. Set environment secret 'ACR_NAME' (preferred) OR repo secret 'STAGING_ACR_NAME' or 'STAGING_ACR_LOGIN'."
+          NAME="${{ secrets.ACR_NAME }}"     # env secret (staging)
+          if [ -z "$NAME" ]; then
+            echo "::error ::Environment secret ACR_NAME is missing in 'staging'."
             exit 1
           fi
-
+          REG="$(az acr show -n "$NAME" --query loginServer -o tsv)"
           echo "acr_name=$NAME"  >> "$GITHUB_OUTPUT"
           echo "acr_login=$REG"  >> "$GITHUB_OUTPUT"
 
+      # 3) Lint Dockerfiles if any exist
       - name: Hadolint (Dockerfiles)
         if: ${{ hashFiles('**/Dockerfile') != '' }}
         uses: hadolint/hadolint-action@v3.1.0
         with:
           recursive: true
 
-      - name: Use Node (only if any package.json exist under src/*)
+      # 4) Node toolchain only if any service has package.json
+      - name: Use Node
         if: ${{ hashFiles('src/**/package.json') != '' }}
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
+      # 5) Per-service install/lint (only in folders that have package.json)
       - name: Install deps + lint per service
         if: ${{ hashFiles('src/**/package.json') != '' }}
         shell: bash
@@ -95,8 +78,9 @@ jobs:
             fi
           done
 
+      # 6) ACR docker login + build/push per service Dockerfile
       - name: ACR Docker login
-        run: az acr login --name ${{ steps.env.outputs.acr_name }}
+        run: az acr login --name ${{ steps.acr.outputs.acr_name }}
 
       - name: Build & push images (staging)
         shell: bash
@@ -107,8 +91,8 @@ jobs:
             if [ -f "$svcdir/Dockerfile" ]; then
               svc="$(basename "$svcdir")"
               echo "🐳 Building $svc (staging)"
-              docker build -t "${{ steps.env.outputs.acr_login }}/$svc:staging" "$svcdir"
-              docker push "${{ steps.env.outputs.acr_login }}/$svc:staging"
+              docker build -t "${{ steps.acr.outputs.acr_login }}/$svc:staging" "$svcdir"
+              docker push "${{ steps.acr.outputs.acr_login }}/$svc:staging"
               built_any=1
             fi
           done
@@ -116,9 +100,7 @@ jobs:
             echo "::warning ::No Dockerfile found under src/* – nothing to build."
           fi
 
-  # ==============================
-  # PRODUCTION (runs on branch: main)
-  # ==============================
+  # ===================== PRODUCTION (main branch) =====================
   production:
     if: ${{ github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
@@ -132,62 +114,44 @@ jobs:
       - name: Azure Login via OIDC
         uses: azure/login@v2
         with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}           # env secret (production)
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}           # repo secret
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }} # repo secret
 
-      # Same resolution pattern; if prod infra isn't created yet we SKIP cleanly
       - name: Resolve ACR (production)
-        id: env
+        id: acr
         shell: bash
         run: |
           set -e
-          NAME="${{ secrets.ACR_NAME || vars.ACR_NAME }}"
-          if [ -z "$NAME" ]; then NAME="${{ secrets.PROD_ACR_NAME }}"; fi
-
-          REG=""
-          if [ -n "$NAME" ]; then
-            REG="$(az acr show -n "$NAME" --query loginServer -o tsv || true)"
-          fi
-
-          if [ -z "$REG" ]; then
-            REG_FQDN="${{ secrets.PROD_ACR_LOGIN }}"
-            if [ -n "$REG_FQDN" ]; then
-              REG="$REG_FQDN"
-              NAME="${REG%%.*}"
-            fi
-          fi
-
-          if [ -z "$NAME" ] && [ -z "$REG" ]; then
-            echo "::warning ::Production ACR not configured/available yet. Skipping production build."
+          NAME="${{ secrets.ACR_NAME }}"   # env secret (production)
+          if [ -z "$NAME" ]; then
+            echo "::warning ::ACR_NAME env secret is missing in 'production'. Skipping build."
             echo "skip_build=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-
-          if [ -n "$NAME" ] && [ -z "$REG" ]; then
-            echo "::warning ::ACR '$NAME' not found yet (Terraform not applied?). Skipping production build."
+          if ! REG="$(az acr show -n "$NAME" --query loginServer -o tsv 2>/dev/null)"; then
+            echo "::warning ::ACR '$NAME' not found yet (maybe Terraform hasn’t created it). Skipping build."
             echo "skip_build=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-
-          echo "skip_build=false"   >> "$GITHUB_OUTPUT"
-          echo "acr_name=$NAME"     >> "$GITHUB_OUTPUT"
-          echo "acr_login=$REG"     >> "$GITHUB_OUTPUT"
+          echo "skip_build=false" >> "$GITHUB_OUTPUT"
+          echo "acr_name=$NAME"   >> "$GITHUB_OUTPUT"
+          echo "acr_login=$REG"   >> "$GITHUB_OUTPUT"
 
       - name: Hadolint (Dockerfiles)
-        if: ${{ steps.env.outputs.skip_build != 'true' && hashFiles('**/Dockerfile') != '' }}
+        if: ${{ steps.acr.outputs.skip_build != 'true' && hashFiles('**/Dockerfile') != '' }}
         uses: hadolint/hadolint-action@v3.1.0
         with:
           recursive: true
 
-      - name: Use Node (only if any package.json exist under src/*)
-        if: ${{ steps.env.outputs.skip_build != 'true' && hashFiles('src/**/package.json') != '' }}
+      - name: Use Node
+        if: ${{ steps.acr.outputs.skip_build != 'true' && hashFiles('src/**/package.json') != '' }}
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
       - name: Install deps + lint per service
-        if: ${{ steps.env.outputs.skip_build != 'true' && hashFiles('src/**/package.json') != '' }}
+        if: ${{ steps.acr.outputs.skip_build != 'true' && hashFiles('src/**/package.json') != '' }}
         shell: bash
         run: |
           set -e
@@ -207,11 +171,11 @@ jobs:
           done
 
       - name: ACR Docker login
-        if: ${{ steps.env.outputs.skip_build != 'true' }}
-        run: az acr login --name ${{ steps.env.outputs.acr_name }}
+        if: ${{ steps.acr.outputs.skip_build != 'true' }}
+        run: az acr login --name ${{ steps.acr.outputs.acr_name }}
 
       - name: Build & push images (production)
-        if: ${{ steps.env.outputs.skip_build != 'true' }}
+        if: ${{ steps.acr.outputs.skip_build != 'true' }}
         shell: bash
         run: |
           set -e
@@ -220,8 +184,8 @@ jobs:
             if [ -f "$svcdir/Dockerfile" ]; then
               svc="$(basename "$svcdir")"
               echo "🐳 Building $svc (production)"
-              docker build -t "${{ steps.env.outputs.acr_login }}/$svc:production" "$svcdir"
-              docker push "${{ steps.env.outputs.acr_login }}/$svc:production"
+              docker build -t "${{ steps.acr.outputs.acr_login }}/$svc:production" "$svcdir"
+              docker push "${{ steps.acr.outputs.acr_login }}/$svc:production"
               built_any=1
             fi
           done
