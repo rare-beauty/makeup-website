@@ -152,6 +152,14 @@ jobs:
 
       # Build Checkov skip list per environment.
       # Staging adds CKV_TF_1,CKV_TF_2 (allow using 'main'); prod does NOT skip those.
+      # - name: Set Checkov skip list by env
+      #   run: |
+      #     if [ "${{ steps.envsel.outputs.env }}" = "staging" ]; then
+      #       echo "COMBINED_SKIP_CHECKS=${SKIP_CHECKS_BASE},CKV_TF_1,CKV_TF_2" >> $GITHUB_ENV
+      #     else
+      #       echo "COMBINED_SKIP_CHECKS=${SKIP_CHECKS_BASE}" >> $GITHUB_ENV
+      #     fi
+
       - name: Set Checkov skip list by env
         run: |
           if [ "${{ steps.envsel.outputs.env }}" = "staging" ]; then
