@@ -207,7 +207,12 @@ jobs:
           approvers: vinaypalvirk51, sukhdeep26
           minimum-approvals: 1
 
-      - name: Terraform Apply
-        if: github.event_name == 'workflow_dispatch'
+      # - name: Terraform Apply
+      #   if: github.event_name == 'workflow_dispatch'
+      #   working-directory: ${{ env.TF_DIR }}
+      #   run: terraform apply -input=false -auto-approve tfplan
+
+      - name: Terraform Apply (staging auto; prod only on manual run)
+        if: ${{ steps.envsel.outputs.env != 'production' || github.event_name == 'workflow_dispatch' }}
         working-directory: ${{ env.TF_DIR }}
         run: terraform apply -input=false -auto-approve tfplan
