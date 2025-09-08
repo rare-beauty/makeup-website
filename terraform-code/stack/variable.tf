@@ -22,7 +22,7 @@ variable "cfg" {
     node_count   = number
     node_vm_size = string
     environment  = string
-    #log_analytics_workspace_id = string
+    #log_analytics_workspace_id = string #comment
 
 
   })

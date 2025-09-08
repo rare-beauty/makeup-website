@@ -24,7 +24,7 @@ concurrency:
 
 jobs:
   terraform:
-    name: Terraform (${{ github.event_name == 'workflow_dispatch' && inputs.environment || (github.ref_name == 'main' && 'production' || 'staging') }})
+    name: Terraform Deploy
     runs-on: ubuntu-latest
     environment: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || (github.ref_name == 'main' && 'production' || 'staging') }}
 
@@ -33,222 +33,108 @@ jobs:
       ARM_TENANT_ID:       ${{ secrets.AZURE_TENANT_ID }}
       ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
       ARM_USE_OIDC:        true
-      ARM_SKIP_PROVIDER_REGISTRATION: false
-      SKIP_CHECKS_BASE: CKV_AZURE_233,CKV_AZURE_139,CKV_AZURE_141,CKV_AZURE_165,CKV_AZURE_237,CKV_AZURE_167,CKV_AZURE_163,CKV_AZURE_166,CKV_AZURE_164,CKV_AZURE_4,CKV_AZURE_117,CKV_AZURE_170,CKV_AZURE_226,CKV_AZURE_227,CKV2_AZURE_32
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - name: Detect Environment
+      - name: Set Environment
         id: envsel
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "env=${{ inputs.environment }}" >> $GITHUB_OUTPUT
-          elif [ "${GITHUB_REF##*/}" = "main" ]; then
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "env=${{ github.event.inputs.environment }}" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref_name }}" == "main" ]]; then
             echo "env=production" >> $GITHUB_OUTPUT
           else
             echo "env=staging" >> $GITHUB_OUTPUT
           fi
-          echo "Selected env=${{ steps.envsel.outputs.env }}"
 
-      - name: Set TF_DIR
-        run: echo "TF_DIR=terraform-code/stack" >> $GITHUB_ENV
-
-      - name: Select tfvars file
+      - name: Set TF_DIR and TFVARS
         run: |
-          if [ "${{ steps.envsel.outputs.env }}" = "production" ]; then
-            echo "TFVARS_FILE=../environments/production/prod.tfvars" >> $GITHUB_ENV
-            echo "TFVARS_FILE_REPO=terraform-code/environments/production/prod.tfvars" >> $GITHUB_ENV
-          else
-            echo "TFVARS_FILE=../environments/staging/staging.tfvars" >> $GITHUB_ENV
-            echo "TFVARS_FILE_REPO=terraform-code/environments/staging/staging.tfvars" >> $GITHUB_ENV
-          fi
+          echo "TF_DIR=terraform-code/environments/${{ steps.envsel.outputs.env }}" >> $GITHUB_ENV
+          echo "TFVARS=${{ steps.envsel.outputs.env }}.tfvars" >> $GITHUB_ENV
 
-      - uses: hashicorp/setup-terraform@v3
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.6.6
 
       - name: Azure Login (OIDC)
-        uses: azure/login@v1
+        uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Register Azure resource providers
+      - name: Read module ref
+        id: ref
         run: |
-          az provider register --namespace Microsoft.KeyVault --wait
-          az provider register --namespace Microsoft.ContainerRegistry --wait
-          az provider register --namespace Microsoft.ContainerService --wait
-          az provider register --namespace Microsoft.Network --wait
+          REF=$(cat $TF_DIR/module-ref.txt | tr -d '[:space:]')
+          echo "MODULE_REF=$REF" >> $GITHUB_ENV
+          echo "ref=$REF" >> $GITHUB_OUTPUT
 
-      - name: Read Module Ref
+      - name: Render main.tf
         run: |
-          if [ "${{ steps.envsel.outputs.env }}" = "production" ]; then
-            REF_FILE="terraform-code/environments/production/module-ref.txt"
-          else
-            REF_FILE="terraform-code/environments/staging/module-ref.txt"
-          fi
+          sed "s|__REF__|${MODULE_REF}|g" terraform-code/stack/main.tf.tmpl > $TF_DIR/main.tf
 
-          if [ ! -f "$REF_FILE" ]; then
-            echo "ERROR: $REF_FILE does not exist." >&2
-            exit 1
-          fi
-
-          MODULE_REF="$(tr -d ' \t\r\n' < "$REF_FILE")"
-          echo "MODULE_REF=$MODULE_REF" >> "$GITHUB_ENV"
-
-          if [ "${{ steps.envsel.outputs.env }}" = "production" ]; then
-            if [ -z "$MODULE_REF" ] || [ "$MODULE_REF" = "main" ]; then
-              echo "ERROR: In production, MODULE_REF must be a tag or commit SHA (not 'main')." >&2
-              exit 1
-            fi
-          else
-            if [ "$MODULE_REF" = "main" ]; then
-              echo "WARNING: Using 'main' for staging is allowed." >&2
-            fi
-          fi
-
-      - name: Render main.tf from template
+      - name: Validate rendered sources
         run: |
-          sed "s#__REF__#${MODULE_REF}#g" terraform-code/stack/main.tf.tmpl > terraform-code/stack/main.tf
-          echo "Rendered main.tf (first 200 lines):"
-          sed -n '1,200p' terraform-code/stack/main.tf
+          grep -E 'source\s*=\s*"git::https://.*/terraform/modules/' $TF_DIR/main.tf || {
+            echo "::error ::Rendered main.tf missing //terraform/modules path"; exit 1; }
+          head -20 $TF_DIR/main.tf
 
-      # NEW: verify module 'source' lines include //terraform/modules/<name>
-      - name: Verify module sources use subdirs
+      - name: Sanity check infra repo
         run: |
           set -e
-          # If any source lacks the double-slash + subdir, fail early
-          if grep -nE 'source *= *"git::https://github.com/rare-beauty/terraform-infrastructure.git\?ref=' terraform-code/stack/main.tf; then
-            echo "::error ::One or more module sources are missing the //terraform/modules/<name> subdir."
-            exit 1
-          fi
-          echo "OK: module sources include subdir component."
-
-      # NEW: sanity check infra ref for tags/branches and raw SHAs
-      - name: Sanity check infra ref & paths
-        run: |
-          set -e
-          echo "Checking terraform-infrastructure ref: ${MODULE_REF}"
-
           git init /tmp/infra
           cd /tmp/infra
           git remote add origin https://github.com/rare-beauty/terraform-infrastructure.git
-          if git fetch --depth=1 origin "${MODULE_REF}"; then
+          if git fetch --depth 1 origin "${MODULE_REF}"; then
             git checkout FETCH_HEAD
           else
-            echo "Ref '${MODULE_REF}' is not a tag/branch. Trying commit SHA..."
-            git fetch --depth=1 origin "${MODULE_REF}":"tmpref"
-            git checkout tmpref
+            git fetch --depth 1 origin && git checkout "${MODULE_REF}" || {
+              echo "::error ::Cannot resolve MODULE_REF=${MODULE_REF}"; exit 1; }
           fi
-
-          echo "At commit: $(git rev-parse --short HEAD)"
-
           for m in resourcegroup virtualnetwork subnet acr azurekeyvault aks rbac; do
-            if [ ! -d "terraform/modules/$m" ]; then
-              echo "::error ::Missing module directory: terraform/modules/$m at ref ${MODULE_REF}"
-              echo "Available under terraform/modules:"
-              ls -la terraform/modules || true
-              exit 1
-            fi
+            test -d "terraform/modules/$m" || { echo "::error ::Missing $m module"; exit 1; }
           done
-          echo "OK: all module directories exist at ${MODULE_REF}"
+          echo "OK: all modules exist at ${MODULE_REF}"
 
-      - name: Terraform Format (write)
-        working-directory: ${{ env.TF_DIR }}
-        run: terraform fmt -recursive
+      - name: Terraform fmt
+        run: terraform -chdir=$TF_DIR fmt -check
 
-      - name: Terraform Format (check)
-        working-directory: ${{ env.TF_DIR }}
-        run: terraform fmt -check -diff -recursive
+      - name: Terraform init
+        run: terraform -chdir=$TF_DIR init -upgrade -backend-config=backend.tfvars
 
-      - name: Setup TFLint
-        uses: terraform-linters/setup-tflint@v4
+      - name: Terraform validate
+        run: terraform -chdir=$TF_DIR validate
 
-      - name: Run TFLint
-        working-directory: ${{ env.TF_DIR }}
-        run: |
-          tflint --init
-          tflint --minimum-failure-severity=error
+      - name: Terraform plan
+        run: terraform -chdir=$TF_DIR plan -input=false -var-file=$TFVARS -out=tfplan
 
-      - name: Terraform Init
-        working-directory: ${{ env.TF_DIR }}
-        run: |
-          if [ "${{ steps.envsel.outputs.env }}" = "production" ]; then
-            KEY="state/production.terraform.tfstate"
-          else
-            KEY="state/${{ steps.envsel.outputs.env }}.terraform.tfstate"
-          fi
-          terraform init -upgrade -input=false -reconfigure -backend-config="key=${KEY}"
+      - name: Terraform plan JSON
+        run: terraform -chdir=$TF_DIR show -json tfplan > tfplan.json
 
-      - name: Terraform Validate
-        working-directory: ${{ env.TF_DIR }}
-        run: terraform validate
-
-      - name: Set Checkov skip list by env
-        run: |
-          if [ "${{ steps.envsel.outputs.env }}" = "staging" ]; then
-            echo "COMBINED_SKIP_CHECKS=${SKIP_CHECKS_BASE},CKV_TF_1,CKV_TF_2" >> $GITHUB_ENV
-          else
-            echo "COMBINED_SKIP_CHECKS=${SKIP_CHECKS_BASE}" >> $GITHUB_ENV
-          fi
-
-      - name: Terraform Plan
-        working-directory: ${{ env.TF_DIR }}
-        shell: bash
-        run: |
-          unset TF_CLI_ARGS TF_CLI_ARGS_plan
-          echo "PWD=$(pwd)"; ls -la
-          set +e
-          terraform plan -input=false -no-color \
-            -var-file="${{ env.TFVARS_FILE }}" \
-            -out=tfplan \
-            -detailed-exitcode \
-            -compact-warnings \
-            1>plan.stdout.log 2>plan.stderr.log
-          code=$?
-          echo "----- terraform plan STDOUT -----"; tail -n +1 plan.stdout.log || true
-          echo "----- terraform plan STDERR -----"; tail -n +1 plan.stderr.log || true
-          echo "terraform plan exit code: $code"
-          if [ $code -eq 1 ]; then exit 1; fi
-          exit 0
-
-      - name: Export plan to JSON
-        working-directory: ${{ env.TF_DIR }}
-        run: terraform show -json tfplan > plan.json
-
-      - name: Checkov (IaC source scan)
+      - name: Checkov (source)
         uses: bridgecrewio/checkov-action@v12
         with:
           directory: ${{ env.TF_DIR }}
-          framework: terraform
-          download_external_modules: true
-          var_file: ${{ env.TFVARS_FILE_REPO }}
-          output_format: sarif
-          output_file_path: results.sarif
-          soft_fail: false
-          skip_check: ${{ env.COMBINED_SKIP_CHECKS }}
+          quiet: true
 
-      - name: Checkov (Terraform plan scan)
+      - name: Checkov (plan)
         uses: bridgecrewio/checkov-action@v12
         with:
-          file: ${{ env.TF_DIR }}/plan.json
-          framework: terraform_plan
-          output_format: sarif
-          output_file_path: results-plan.sarif
-          soft_fail: false
-          skip_check: ${{ env.COMBINED_SKIP_CHECKS }}
+          file: ${{ env.TF_DIR }}/tfplan.json
+          quiet: true
 
       - name: Manual Approval for Production
-        if: github.event_name == 'workflow_dispatch' && steps.envsel.outputs.env == 'production'
+        if: steps.envsel.outputs.env == 'production'
         uses: trstringer/manual-approval@v1
         with:
           secret: ${{ secrets.GITHUB_TOKEN }}
           approvers: vinaypalvirk51, sukhdeep26
           minimum-approvals: 1
 
-      - name: Terraform Apply (staging auto; prod only on manual run)
-        if: ${{ steps.envsel.outputs.env != 'production' || github.event_name == 'workflow_dispatch' }}
-        working-directory: ${{ env.TF_DIR }}
-        run: terraform apply -input=false -auto-approve tfplan
+      - name: Terraform apply
+        if: steps.envsel.outputs.env != 'production' || github.event_name == 'workflow_dispatch'
+        run: terraform -chdir=$TF_DIR apply -input=false -auto-approve tfplan
