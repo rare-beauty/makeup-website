@@ -115,17 +115,41 @@ jobs:
           echo "Rendered main.tf (first 200 lines):"
           sed -n '1,200p' terraform-code/stack/main.tf
 
-      # ✅ NEW: Sanity check that the infra ref & module paths actually exist
+      # NEW: verify module 'source' lines include //terraform/modules/<name>
+      - name: Verify module sources use subdirs
+        run: |
+          set -e
+          # If any source lacks the double-slash + subdir, fail early
+          if grep -nE 'source *= *"git::https://github.com/rare-beauty/terraform-infrastructure.git\?ref=' terraform-code/stack/main.tf; then
+            echo "::error ::One or more module sources are missing the //terraform/modules/<name> subdir."
+            exit 1
+          fi
+          echo "OK: module sources include subdir component."
+
+      # NEW: sanity check infra ref for tags/branches and raw SHAs
       - name: Sanity check infra ref & paths
         run: |
           set -e
           echo "Checking terraform-infrastructure ref: ${MODULE_REF}"
-          git clone --depth 1 --branch "${MODULE_REF}" https://github.com/rare-beauty/terraform-infrastructure.git /tmp/infra
+
+          git init /tmp/infra
+          cd /tmp/infra
+          git remote add origin https://github.com/rare-beauty/terraform-infrastructure.git
+          if git fetch --depth=1 origin "${MODULE_REF}"; then
+            git checkout FETCH_HEAD
+          else
+            echo "Ref '${MODULE_REF}' is not a tag/branch. Trying commit SHA..."
+            git fetch --depth=1 origin "${MODULE_REF}":"tmpref"
+            git checkout tmpref
+          fi
+
+          echo "At commit: $(git rev-parse --short HEAD)"
+
           for m in resourcegroup virtualnetwork subnet acr azurekeyvault aks rbac; do
-            if [ ! -d "/tmp/infra/terraform/modules/$m" ]; then
+            if [ ! -d "terraform/modules/$m" ]; then
               echo "::error ::Missing module directory: terraform/modules/$m at ref ${MODULE_REF}"
-              echo "Available under /tmp/infra/terraform/modules:"
-              ls -la /tmp/infra/terraform/modules || true
+              echo "Available under terraform/modules:"
+              ls -la terraform/modules || true
               exit 1
             fi
           done
