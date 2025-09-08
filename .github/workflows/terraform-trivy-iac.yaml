@@ -100,8 +100,15 @@ jobs:
           done
           echo "OK: all modules exist at ${MODULE_REF}"
 
-      - name: Terraform fmt
-        run: terraform -chdir=$TF_DIR fmt -check
+      # - name: Terraform fmt
+      #   run: terraform -chdir=$TF_DIR fmt -check
+    
+      # --- replace your current fmt step(s) with these two ---
+      - name: Terraform fmt (write)
+        run: terraform -chdir=$TF_DIR fmt -recursive
+
+      - name: Terraform fmt (check)
+        run: terraform -chdir=$TF_DIR fmt -check -recursive
 
       - name: Terraform init
         run: terraform -chdir=$TF_DIR init -upgrade -backend-config=backend.tfvars
