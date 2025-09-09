@@ -100,10 +100,32 @@ jobs:
           done
           echo "OK: all modules exist at ${MODULE_REF}"
 
-      # - name: Terraform fmt
-      #   run: terraform -chdir=$TF_DIR fmt -check
-    
-      # --- replace your current fmt step(s) with these two ---
+      # ---------- NEW: ensure modern provider + data source in the ENV folder ----------
+      - name: Ensure modern azurerm provider in env folder
+        run: |
+          cat > "$TF_DIR/providers.auto.tf" <<'EOF'
+          terraform {
+            required_version = ">= 1.6.0, < 2.0.0"
+            required_providers {
+              azurerm = {
+                source  = "hashicorp/azurerm"
+                # needs to recognize retention_policy on ACR and automatic_channel_upgrade on AKS
+                version = ">= 3.113.0, < 4.0.0"
+              }
+            }
+          }
+          provider "azurerm" { features {} }
+          data "azurerm_client_config" "current" {}
+          EOF
+          echo "Wrote $TF_DIR/providers.auto.tf"
+
+      # ---------- NEW: nuke provider cache/lock so init actually upgrades ----------
+      - name: Clean provider cache (force fresh provider)
+        run: |
+          rm -rf "$TF_DIR/.terraform"
+          rm -f  "$TF_DIR/.terraform.lock.hcl"
+
+      # --- keep your fmt steps exactly as-is ---
       - name: Terraform fmt (write)
         run: terraform -chdir=$TF_DIR fmt -recursive
 
@@ -112,6 +134,13 @@ jobs:
 
       - name: Terraform init
         run: terraform -chdir=$TF_DIR init -upgrade -backend-config=backend.tfvars
+
+      # ---------- NEW: show versions for sanity ----------
+      - name: Show Terraform & providers
+        run: |
+          terraform -chdir=$TF_DIR version
+          echo "----------- providers -----------"
+          terraform -chdir=$TF_DIR providers
 
       - name: Terraform validate
         run: terraform -chdir=$TF_DIR validate
