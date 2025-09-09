@@ -14,7 +14,7 @@ cfg = {
 
   aks          = "staging-aks"
   dns_prefix   = "stagingaks"
-  node_count   = 1              # cheapest (1 node)
+  node_count   = 1             
   node_vm_size = "Standard_B2s" # AKS needs >=2 vCPU; B1s won't work
 
   environment = "staging"
