@@ -137,24 +137,58 @@ jobs:
           
           echo "✅ All required modules found at version ${MODULE_REF}"
 
-      # Verify backend configuration exists
-      - name: Verify backend configuration
+      # Verify required configuration files exist
+      - name: Verify configuration files exist
         run: |
-          echo "Checking for existing backend configuration..."
-          if [ -f "$TF_DIR/backend.tf" ]; then
-            echo "✅ Backend configuration found"
+          echo "Checking for required configuration files in $TF_DIR..."
+          
+          # Check for provider.tf (contains backend config)
+          if [ -f "$TF_DIR/provider.tf" ]; then
+            echo "✅ Provider configuration found (provider.tf)"
+            # Verify it contains backend configuration
+            if grep -q "backend.*azurerm" "$TF_DIR/provider.tf"; then
+              echo "✅ Backend configuration found in provider.tf"
+            else
+              echo "⚠️  WARNING: No backend configuration found in provider.tf"
+            fi
           else
-            echo "❌ ERROR: backend.tf not found in $TF_DIR"
+            echo "❌ ERROR: provider.tf not found in $TF_DIR"
             exit 1
           fi
           
-          if [ -f "$TF_DIR/backend.tfvars" ]; then
-            echo "✅ Backend variables file found"
+          # Check for variables file
+          if [ -f "$TF_DIR/variable.tf" ]; then
+            echo "✅ Variables file found (variable.tf)"
           else
-            echo "❌ ERROR: backend.tfvars not found in $TF_DIR"
-            echo "This file should contain: resource_group_name, storage_account_name, container_name, key"
+            echo "❌ ERROR: variable.tf not found in $TF_DIR"
             exit 1
           fi
+          
+          # Check for tfvars file
+          if [ -f "$TF_DIR/${{ steps.env.outputs.target }}.tfvars" ]; then
+            echo "✅ Environment variables file found (${{ steps.env.outputs.target }}.tfvars)"
+          else
+            echo "❌ ERROR: ${{ steps.env.outputs.target }}.tfvars not found in $TF_DIR"
+            exit 1
+          fi
+          
+          # Check for main.tf file (should exist since it calls the stack module)
+          if [ -f "$TF_DIR/main.tf" ]; then
+            echo "✅ Main configuration found (main.tf)"
+          else
+            echo "❌ ERROR: main.tf not found in $TF_DIR"
+            echo "Expected to find main.tf that calls the stack module"
+            exit 1
+          fi
+          
+          # Check for datasources.tf (optional)
+          if [ -f "$TF_DIR/datasources.tf" ]; then
+            echo "✅ Data sources configuration found (datasources.tf)"
+          else
+            echo "ℹ️  datasources.tf not found - this is optional"
+          fi
+          
+          echo "✅ All required configuration files verified!"
 
       # Clean up any old Terraform state to avoid conflicts
       - name: Clean up old Terraform cache
@@ -182,7 +216,8 @@ jobs:
       - name: Initialize Terraform
         run: |
           echo "Initializing Terraform..."
-          terraform -chdir=$TF_DIR init -upgrade -backend-config=backend.tfvars
+          # Backend config is in provider.tf, so no separate backend-config needed
+          terraform -chdir=$TF_DIR init -upgrade
           echo "✅ Terraform initialized"
 
       # Show what versions we're using
@@ -244,4 +279,4 @@ jobs:
         run: |
           echo "🚀 Deploying infrastructure to ${{ steps.env.outputs.target }}..."
           terraform -chdir=$TF_DIR apply -input=false -auto-approve tfplan
-          echo "✅ Deployment completed successfully!"
+          echo "✅ Deployment completed successfully
