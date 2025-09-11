@@ -93,24 +93,18 @@ jobs:
           echo "MODULE_REF=$MODULE_VERSION" >> $GITHUB_ENV
           echo "Using module version: $MODULE_VERSION"
 
-      # Create the main Terraform file from template
-      - name: Generate Terraform configuration
+      # Verify main.tf calls the stack module correctly
+      - name: Verify main.tf configuration
         run: |
-          echo "Creating main.tf from template..."
-          sed "s|__REF__|${MODULE_REF}|g" terraform-code/stack/main.tf.tmpl > $TF_DIR/main.tf
-          echo "✅ Generated main.tf"
-
-      # Make sure our generated file looks correct
-      - name: Verify generated configuration
-        run: |
-          echo "Checking if generated main.tf has correct module sources..."
-          grep -E 'source\s*=\s*"git::https://.*/terraform/modules/' $TF_DIR/main.tf || {
-            echo "❌ ERROR: Generated main.tf is missing proper module sources"
+          echo "Verifying main.tf calls the stack module..."
+          if grep -q "module.*stack" "$TF_DIR/main.tf"; then
+            echo "✅ main.tf calls stack module"
+            echo "Content preview:"
+            cat "$TF_DIR/main.tf"
+          else
+            echo "❌ ERROR: main.tf doesn't call stack module"
             exit 1
-          }
-          echo "✅ Configuration looks good"
-          echo "First 20 lines of main.tf:"
-          head -20 $TF_DIR/main.tf
+          fi
 
       # Double-check that all required modules exist in the infrastructure repo
       - name: Verify infrastructure modules exist

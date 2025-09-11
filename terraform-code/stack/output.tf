@@ -60,4 +60,6 @@ output "aks_kubelet_identity" {
 #   description = "AKS cluster resource ID"
 # }
 
+# Only keep if your AKS module exports it; your current `module.aks.name` will fail.
+# output "aks_cluster_name" {
 
