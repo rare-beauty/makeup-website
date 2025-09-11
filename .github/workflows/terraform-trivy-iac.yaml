@@ -1,33 +1,42 @@
-name: Terraform Pipeline
+name: Deploy Infrastructure
 
 on:
+  # Run when someone opens a PR that changes infrastructure code
   pull_request:
     paths: ['terraform-code/**']
+  
+  # Run when code is pushed to dev or main branches
   push:
     branches: [ dev, main ]
     paths: ['terraform-code/**']
+  
+  # Allow manual deployment with environment selection
   workflow_dispatch:
     inputs:
       environment:
-        description: "Environment to deploy"
+        description: "Which environment do you want to deploy?"
         required: true
         type: choice
         options: [staging, production]
 
 permissions:
-  id-token: write
-  contents: read
+  id-token: write    # Needed for Azure authentication
+  contents: read     # Needed to read the repository
 
+# Prevent multiple deployments running at the same time
 concurrency:
-  group: tf-${{ github.workflow }}-${{ github.ref_name }}
+  group: terraform-${{ github.workflow }}-${{ github.ref_name }}
   cancel-in-progress: true
 
 jobs:
-  terraform:
-    name: Terraform Deploy
+  deploy:
+    name: Deploy Infrastructure
     runs-on: ubuntu-latest
+    
+    # Choose environment based on how the workflow was triggered
     environment: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || (github.ref_name == 'main' && 'production' || 'staging') }}
 
+    # Azure credentials for authentication
     env:
       ARM_CLIENT_ID:       ${{ secrets.AZURE_CLIENT_ID }}
       ARM_TENANT_ID:       ${{ secrets.AZURE_TENANT_ID }}
@@ -35,159 +44,210 @@ jobs:
       ARM_USE_OIDC:        true
 
     steps:
-      - name: Checkout code
+      # Get the latest code
+      - name: Get code from repository
         uses: actions/checkout@v4
 
-      - name: Set Environment
-        id: envsel
+      # Figure out which environment we're deploying to
+      - name: Determine target environment
+        id: env
         run: |
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            echo "env=${{ github.event.inputs.environment }}" >> $GITHUB_OUTPUT
+            # Manual deployment - use selected environment
+            echo "target=${{ github.event.inputs.environment }}" >> $GITHUB_OUTPUT
           elif [[ "${{ github.ref_name }}" == "main" ]]; then
-            echo "env=production" >> $GITHUB_OUTPUT
+            # Push to main branch - deploy to production
+            echo "target=production" >> $GITHUB_OUTPUT
           else
-            echo "env=staging" >> $GITHUB_OUTPUT
+            # Push to other branches - deploy to staging
+            echo "target=staging" >> $GITHUB_OUTPUT
           fi
+          echo "Deploying to: ${{ steps.env.outputs.target }}"
 
-      - name: Set TF_DIR and TFVARS
+      # Set up paths for this specific environment
+      - name: Set up environment paths
         run: |
-          echo "TF_DIR=terraform-code/environments/${{ steps.envsel.outputs.env }}" >> $GITHUB_ENV
-          echo "TFVARS=${{ steps.envsel.outputs.env }}.tfvars" >> $GITHUB_ENV
+          echo "TF_DIR=terraform-code/environments/${{ steps.env.outputs.target }}" >> $GITHUB_ENV
+          echo "TFVARS=${{ steps.env.outputs.target }}.tfvars" >> $GITHUB_ENV
+          echo "Working with directory: terraform-code/environments/${{ steps.env.outputs.target }}"
+          echo "Using variables file: ${{ steps.env.outputs.target }}.tfvars"
 
-      - name: Setup Terraform
+      # Install Terraform
+      - name: Install Terraform
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.6.6
 
-      - name: Azure Login (OIDC)
+      # Login to Azure using OIDC (no passwords needed!)
+      - name: Login to Azure
         uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Read module ref
-        id: ref
+      # Read which version of modules to use
+      - name: Read module version
         run: |
-          REF=$(cat $TF_DIR/module-ref.txt | tr -d '[:space:]')
-          echo "MODULE_REF=$REF" >> $GITHUB_ENV
-          echo "ref=$REF" >> $GITHUB_OUTPUT
+          MODULE_VERSION=$(cat $TF_DIR/module-ref.txt | tr -d '[:space:]')
+          echo "MODULE_REF=$MODULE_VERSION" >> $GITHUB_ENV
+          echo "Using module version: $MODULE_VERSION"
 
-      - name: Render main.tf
+      # Create the main Terraform file from template
+      - name: Generate Terraform configuration
         run: |
+          echo "Creating main.tf from template..."
           sed "s|__REF__|${MODULE_REF}|g" terraform-code/stack/main.tf.tmpl > $TF_DIR/main.tf
+          echo "✅ Generated main.tf"
 
-      - name: Validate rendered sources
+      # Make sure our generated file looks correct
+      - name: Verify generated configuration
         run: |
+          echo "Checking if generated main.tf has correct module sources..."
           grep -E 'source\s*=\s*"git::https://.*/terraform/modules/' $TF_DIR/main.tf || {
-            echo "::error ::Rendered main.tf missing //terraform/modules path"; exit 1; }
+            echo "❌ ERROR: Generated main.tf is missing proper module sources"
+            exit 1
+          }
+          echo "✅ Configuration looks good"
+          echo "First 20 lines of main.tf:"
           head -20 $TF_DIR/main.tf
 
-      - name: Sanity check infra repo
+      # Double-check that all required modules exist in the infrastructure repo
+      - name: Verify infrastructure modules exist
         run: |
-          set -e
+          echo "Checking if all required modules exist at version ${MODULE_REF}..."
+          
+          # Clone the infrastructure repo temporarily
           git init /tmp/infra
           cd /tmp/infra
           git remote add origin https://github.com/rare-beauty/terraform-infrastructure.git
+          
+          # Try to get the specific version
           if git fetch --depth 1 origin "${MODULE_REF}"; then
             git checkout FETCH_HEAD
           else
             git fetch --depth 1 origin && git checkout "${MODULE_REF}" || {
-              echo "::error ::Cannot resolve MODULE_REF=${MODULE_REF}"; exit 1; }
+              echo "❌ ERROR: Cannot find version ${MODULE_REF} in infrastructure repo"
+              exit 1
+            }
           fi
-          for m in resourcegroup virtualnetwork subnet acr azurekeyvault aks rbac; do
-            test -d "terraform/modules/$m" || { echo "::error ::Missing $m module"; exit 1; }
+          
+          # Check all required modules exist
+          REQUIRED_MODULES="resourcegroup virtualnetwork subnet acr azurekeyvault aks rbac"
+          for module in $REQUIRED_MODULES; do
+            if [ ! -d "terraform/modules/$module" ]; then
+              echo "❌ ERROR: Missing required module: $module"
+              exit 1
+            fi
           done
-          echo "OK: all modules exist at ${MODULE_REF}"
+          
+          echo "✅ All required modules found at version ${MODULE_REF}"
 
-      # --------- FIX 1: proper multi-line azurerm provider + data source ---------
-      - name: Ensure modern azurerm provider in env folder
+      # Verify backend configuration exists
+      - name: Verify backend configuration
         run: |
-          cat > "$TF_DIR/providers.auto.tf" <<'EOF'
-          terraform {
-            required_version = ">= 1.6.0, < 2.0.0"
-            required_providers {
-              azurerm = {
-                source  = "hashicorp/azurerm"
-                version = ">= 3.113.0, < 4.0.0"
-              }
-            }
-          }
-
-          provider "azurerm" {
-            features {}
-          }
-
-          data "azurerm_client_config" "current" {}
-          EOF
-          echo "Wrote $TF_DIR/providers.auto.tf"
-
-      # --------- FIX 2: add a minimal backend block in the env folder ----------
-      - name: Ensure backend block exists in env folder
-        run: |
-          if [ ! -f "$TF_DIR/backend.tf" ]; then
-            cat > "$TF_DIR/backend.tf" <<'EOF'
-            terraform {
-              backend "azurerm" {}
-            }
-            EOF
-            echo "Wrote $TF_DIR/backend.tf"
+          echo "Checking for existing backend configuration..."
+          if [ -f "$TF_DIR/backend.tf" ]; then
+            echo "✅ Backend configuration found"
+          else
+            echo "❌ ERROR: backend.tf not found in $TF_DIR"
+            exit 1
           fi
-          # Optional: verify backend.tfvars exists (you already use -backend-config=backend.tfvars)
-          if [ ! -f "$TF_DIR/backend.tfvars" ]; then
-            echo "::warning ::$TF_DIR/backend.tfvars is missing. Expected keys: resource_group_name, storage_account_name, container_name, key"
+          
+          if [ -f "$TF_DIR/backend.tfvars" ]; then
+            echo "✅ Backend variables file found"
+          else
+            echo "❌ ERROR: backend.tfvars not found in $TF_DIR"
+            echo "This file should contain: resource_group_name, storage_account_name, container_name, key"
+            exit 1
           fi
 
-      # Force fresh provider resolution
-      - name: Clean provider cache (force fresh provider)
+      # Clean up any old Terraform state to avoid conflicts
+      - name: Clean up old Terraform cache
         run: |
+          echo "Cleaning up old Terraform files..."
           rm -rf "$TF_DIR/.terraform"
           rm -f  "$TF_DIR/.terraform.lock.hcl"
+          echo "✅ Cleanup complete"
 
-      - name: Terraform fmt (write)
-        run: terraform -chdir=$TF_DIR fmt -recursive
-
-      - name: Terraform fmt (check)
-        run: terraform -chdir=$TF_DIR fmt -check -recursive
-
-      - name: Terraform init
-        run: terraform -chdir=$TF_DIR init -upgrade -backend-config=backend.tfvars
-
-      - name: Show Terraform & providers
+      # Format Terraform files to make them look nice
+      - name: Format Terraform files
         run: |
+          echo "Formatting Terraform files..."
+          terraform -chdir=$TF_DIR fmt -recursive
+          echo "✅ Files formatted"
+
+      # Check that formatting is correct
+      - name: Verify Terraform formatting
+        run: |
+          echo "Checking Terraform formatting..."
+          terraform -chdir=$TF_DIR fmt -check -recursive
+          echo "✅ Formatting is correct"
+
+      # Initialize Terraform (download providers, set up backend)
+      - name: Initialize Terraform
+        run: |
+          echo "Initializing Terraform..."
+          terraform -chdir=$TF_DIR init -upgrade -backend-config=backend.tfvars
+          echo "✅ Terraform initialized"
+
+      # Show what versions we're using
+      - name: Show Terraform version info
+        run: |
+          echo "Terraform version:"
           terraform -chdir=$TF_DIR version
-          echo "----------- providers -----------"
+          echo ""
+          echo "Providers being used:"
           terraform -chdir=$TF_DIR providers
 
-      - name: Terraform validate
-        run: terraform -chdir=$TF_DIR validate
+      # Validate that our Terraform configuration is correct
+      - name: Validate Terraform configuration
+        run: |
+          echo "Validating Terraform configuration..."
+          terraform -chdir=$TF_DIR validate
+          echo "✅ Configuration is valid"
 
-      - name: Terraform plan
-        run: terraform -chdir=$TF_DIR plan -input=false -var-file=$TFVARS -out=tfplan
+      # Create a plan showing what changes will be made
+      - name: Create deployment plan
+        run: |
+          echo "Creating deployment plan..."
+          terraform -chdir=$TF_DIR plan -input=false -var-file=$TFVARS -out=tfplan
+          echo "✅ Plan created successfully"
 
-      - name: Terraform plan JSON
-        run: terraform -chdir=$TF_DIR show -json tfplan > tfplan.json
+      # Convert plan to JSON for security scanning
+      - name: Convert plan to JSON
+        run: |
+          echo "Converting plan to JSON for security analysis..."
+          terraform -chdir=$TF_DIR show -json tfplan > tfplan.json
+          echo "✅ JSON plan created"
 
-      - name: Checkov (source)
+      # Run security checks on our Terraform code
+      - name: Run security scan on code
         uses: bridgecrewio/checkov-action@v12
         with:
           directory: ${{ env.TF_DIR }}
           quiet: true
 
-      - name: Checkov (plan)
+      # Run security checks on our deployment plan
+      - name: Run security scan on plan
         uses: bridgecrewio/checkov-action@v12
         with:
           file: ${{ env.TF_DIR }}/tfplan.json
           quiet: true
 
-      - name: Manual Approval for Production
-        if: steps.envsel.outputs.env == 'production'
+      # For production deployments, require manual approval
+      - name: Request approval for production deployment
+        if: steps.env.outputs.target == 'production'
         uses: trstringer/manual-approval@v1
         with:
           secret: ${{ secrets.GITHUB_TOKEN }}
           approvers: vinaypalvirk51, sukhdeep26
           minimum-approvals: 1
 
-      - name: Terraform apply
-        if: steps.envsel.outputs.env != 'production' || github.event_name == 'workflow_dispatch'
-        run: terraform -chdir=$TF_DIR apply -input=false -auto-approve tfplan
+      # Actually deploy the infrastructure
+      - name: Deploy infrastructure
+        if: steps.env.outputs.target != 'production' || github.event_name == 'workflow_dispatch'
+        run: |
+          echo "🚀 Deploying infrastructure to ${{ steps.env.outputs.target }}..."
+          terraform -chdir=$TF_DIR apply -input=false -auto-approve tfplan
+          echo "✅ Deployment completed successfully!"
