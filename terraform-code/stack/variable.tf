@@ -24,8 +24,8 @@ variable "cfg" {
 }
 
 # Separate variable for module reference
-variable "module_ref" {
-  description = "Git reference (tag/branch/commit) for infrastructure modules"
-  type        = string
-  default     = "main"
-}
+# variable "module_ref" {
+#   description = "Git reference (tag/branch/commit) for infrastructure modules"
+#   type        = string
+#   default     = "main"
+# }
