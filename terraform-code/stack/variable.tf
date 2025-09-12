@@ -1,8 +1,6 @@
 variable "cfg" {
   description = "Environment configuration (everything in one object)."
   type = object({
-
-
     resource_group_name     = string
     resource_group_location = string
 
@@ -22,8 +20,12 @@ variable "cfg" {
     node_count   = number
     node_vm_size = string
     environment  = string
-    #log_analytics_workspace_id = string 
-
-
   })
+}
+
+# Separate variable for module reference
+variable "module_ref" {
+  description = "Git reference (tag/branch/commit) for infrastructure modules"
+  type        = string
+  default     = "main"
 }

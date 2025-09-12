@@ -240,7 +240,8 @@ jobs:
       - name: Create deployment plan
         run: |
           echo "Creating deployment plan..."
-          terraform -chdir=$TF_DIR plan -input=false -var-file=$TFVARS -out=tfplan
+          echo "Using module reference: $MODULE_REF"
+          terraform -chdir=$TF_DIR plan -input=false -var-file=$TFVARS -var="module_ref=$MODULE_REF" -out=tfplan
           echo "✅ Plan created successfully"
 
       # Convert plan to JSON for security scanning
@@ -278,5 +279,6 @@ jobs:
         if: steps.env.outputs.target != 'production' || github.event_name == 'workflow_dispatch'
         run: |
           echo "🚀 Deploying infrastructure to ${{ steps.env.outputs.target }}..."
+          echo "Using module reference: $MODULE_REF"
           terraform -chdir=$TF_DIR apply -input=false -auto-approve tfplan
-          echo "✅ Deployment completed successfully
+          echo "✅ Deployment completed successfully"

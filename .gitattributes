@@ -25,3 +25,16 @@ Dockerfile      text eol=lf
 *.gif           binary
 *.zip           binary
 *.exe           binary
+
+# Set default behavior to automatically normalize line endings
+* text=auto
+
+# Force specific file types to have unix line endings in repository
+*.tf text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.sh text eol=lf
+*.md text eol=lf
+
+# Force batch scripts to have CRLF line endings (Windows)
+*.bat text eol=crlf
