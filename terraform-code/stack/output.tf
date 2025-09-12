@@ -55,6 +55,6 @@ output "aks_kubelet_identity" {
 }
 
 # Only keep if your AKS module exports it; otherwise remove or add an output in the module.
-# output "aks_id"
+# output
 
 

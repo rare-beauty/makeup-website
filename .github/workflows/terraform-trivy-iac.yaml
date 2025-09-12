@@ -286,6 +286,12 @@ jobs:
           # If stack directory exists and has main.tf, validate it too
           if [ -f "terraform-code/stack/main.tf" ]; then
             echo "Validating stack configuration..."
+            echo "Initializing stack directory first..."
+            
+            # Initialize the stack directory to download modules
+            terraform -chdir=terraform-code/stack init -upgrade
+            
+            # Now validate the stack configuration
             terraform -chdir=terraform-code/stack validate
             echo "✅ Stack configuration is valid"
           else
