@@ -233,6 +233,19 @@ jobs:
       - name: Validate Terraform configuration
         run: |
           echo "Validating Terraform configuration..."
+          
+          # Double check that main.tf was created in stack
+          if [ ! -f "terraform-code/stack/main.tf" ]; then
+            echo "❌ ERROR: main.tf not found in stack directory after template processing"
+            echo "Stack directory contents:"
+            ls -la terraform-code/stack/
+            exit 1
+          fi
+          
+          echo "Stack main.tf exists, checking content:"
+          echo "First few lines of main.tf:"
+          head -10 terraform-code/stack/main.tf
+          
           terraform -chdir=$TF_DIR validate
           echo "✅ Configuration is valid"
 
