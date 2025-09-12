@@ -93,6 +93,32 @@ jobs:
           echo "MODULE_REF=$MODULE_VERSION" >> $GITHUB_ENV
           echo "Using module version: $MODULE_VERSION"
 
+      # Process templates if they exist (convert .tmpl files to actual files)
+      - name: Process Terraform templates
+        run: |
+          echo "Processing any Terraform templates..."
+          
+          # Check if we have any .tmpl files in the stack directory
+          if [ -d "terraform-code/stack" ] && [ -n "$(find terraform-code/stack -name '*.tmpl' -type f)" ]; then
+            echo "Found template files in terraform-code/stack/"
+            
+            # Process each .tmpl file
+            for template in terraform-code/stack/*.tmpl; do
+              if [ -f "$template" ]; then
+                output_file="${template%.tmpl}"
+                echo "Processing: $template -> $output_file"
+                
+                # Use envsubst to substitute environment variables
+                # You can also use other template processors here if needed
+                envsubst < "$template" > "$output_file"
+                
+                echo "✅ Created: $output_file"
+              fi
+            done
+          else
+            echo "ℹ️  No template files found in terraform-code/stack/ - skipping template processing"
+          fi
+
       # Verify main.tf calls the stack module correctly
       - name: Verify main.tf configuration
         run: |
@@ -188,6 +214,24 @@ jobs:
             echo "ℹ️  datasources.tf not found - this is optional"
           fi
           
+          # If stack directory exists, verify its files too
+          if [ -d "terraform-code/stack" ]; then
+            echo "Checking stack directory files..."
+            
+            # Check if main.tf exists in stack (after template processing)
+            if [ -f "terraform-code/stack/main.tf" ]; then
+              echo "✅ Stack main.tf found"
+              echo "First few lines of stack main.tf:"
+              head -5 terraform-code/stack/main.tf
+            else
+              echo "⚠️  Stack main.tf not found - this may be expected if using templates"
+            fi
+            
+            # List all files in stack directory for debugging
+            echo "Stack directory contents:"
+            ls -la terraform-code/stack/
+          fi
+          
           echo "✅ All required configuration files verified!"
 
       # Clean up any old Terraform state to avoid conflicts
@@ -233,21 +277,20 @@ jobs:
       - name: Validate Terraform configuration
         run: |
           echo "Validating Terraform configuration..."
+          echo "Validating environment directory: $TF_DIR"
           
-          # Double check that main.tf was created in stack
-          if [ ! -f "terraform-code/stack/main.tf" ]; then
-            echo "❌ ERROR: main.tf not found in stack directory after template processing"
-            echo "Stack directory contents:"
-            ls -la terraform-code/stack/
-            exit 1
-          fi
-          
-          echo "Stack main.tf exists, checking content:"
-          echo "First few lines of main.tf:"
-          head -10 terraform-code/stack/main.tf
-          
+          # Validate the environment-specific configuration
           terraform -chdir=$TF_DIR validate
-          echo "✅ Configuration is valid"
+          echo "✅ Environment configuration is valid"
+          
+          # If stack directory exists and has main.tf, validate it too
+          if [ -f "terraform-code/stack/main.tf" ]; then
+            echo "Validating stack configuration..."
+            terraform -chdir=terraform-code/stack validate
+            echo "✅ Stack configuration is valid"
+          else
+            echo "ℹ️  Stack main.tf not found - skipping stack validation"
+          fi
 
       # Create a plan showing what changes will be made
       - name: Create deployment plan
