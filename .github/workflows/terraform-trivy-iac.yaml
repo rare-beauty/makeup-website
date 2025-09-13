@@ -181,6 +181,39 @@ jobs:
       - name: Validate Terraform configuration
         run: terraform -chdir=$TF_DIR validate
 
+      # One-time: import existing Resource Group if it already exists in Azure
+      - name: Import existing Resource Group if needed
+        run: |
+          set -euo pipefail
+
+          # Try to read RG name from tfvars; fallback to "<env>-rg"
+          RG_NAME=$(awk -F= '/^\s*(resource_group_name|rg_name)\s*=/ {gsub(/[" \t]/,"",$2); print $2}' "$TF_DIR/$TFVARS" | head -n1 || true)
+          if [ -z "${RG_NAME:-}" ]; then
+            if [ "${{ steps.env.outputs.target }}" = "production" ]; then
+              RG_NAME="production-rg"
+            else
+              RG_NAME="staging-rg"
+            fi
+          fi
+          echo "Using RG name: $RG_NAME"
+
+          # If already in state, skip
+          if terraform -chdir="$TF_DIR" state show module.stack.module.resourcegroup.azurerm_resource_group.my_rg >/dev/null 2>&1; then
+            echo "RG already in Terraform state, skipping import."
+            exit 0
+          fi
+
+          # If it exists in Azure, import it; otherwise Terraform will create it during apply
+          if az group exists -n "$RG_NAME"; then
+            SUB_ID="${ARM_SUBSCRIPTION_ID}"
+            RG_ID="/subscriptions/${SUB_ID}/resourceGroups/${RG_NAME}"
+            echo "Importing existing RG into Terraform: $RG_ID"
+            terraform -chdir="$TF_DIR" import -input=false \
+              module.stack.module.resourcegroup.azurerm_resource_group.my_rg "$RG_ID"
+          else
+            echo "Azure RG '$RG_NAME' not found; Terraform will create it."
+          fi
+
       # Create a plan
       - name: Create deployment plan
         run: terraform -chdir=$TF_DIR plan -input=false -var-file=$TFVARS -var="module_ref=$MODULE_REF" -out=tfplan
