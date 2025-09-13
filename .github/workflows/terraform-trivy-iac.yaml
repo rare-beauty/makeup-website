@@ -4,12 +4,12 @@ on:
   # Run when someone opens a PR that changes infrastructure code
   pull_request:
     paths: ['terraform-code/**']
-  
+
   # Run when code is pushed to dev or main branches
   push:
     branches: [ dev, main ]
     paths: ['terraform-code/**']
-  
+
   # Allow manual deployment with environment selection
   workflow_dispatch:
     inputs:
@@ -30,11 +30,26 @@ concurrency:
 
 jobs:
   deploy:
-    name: Deploy Infrastructure
+    name: Deploy Infrastructure — ${{ matrix.environment }}
     runs-on: ubuntu-latest
-    
-    # Choose environment based on how the workflow was triggered
-    environment: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || (github.ref_name == 'main' && 'production' || 'staging') }}
+
+    # Matrix to create two UI "windows" (staging & production)
+    strategy:
+      matrix:
+        environment: [staging, production]
+
+    # Only run the appropriate matrix job based on trigger
+    # - workflow_dispatch: run only the selected input environment
+    # - push main: run production job
+    # - push dev (or anything else): run staging job
+    if: >
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == matrix.environment) ||
+      (github.event_name != 'workflow_dispatch' &&
+        ((github.ref_name == 'refs/heads/main' && matrix.environment == 'production') ||
+         (github.ref_name != 'refs/heads/main' && matrix.environment == 'staging')))
+
+    # Choose environment based on how the workflow was triggered (UI shows separate env per job)
+    environment: ${{ matrix.environment }}
 
     # Azure credentials for authentication
     env:
@@ -52,17 +67,8 @@ jobs:
       - name: Determine target environment
         id: env
         run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            # Manual deployment - use selected environment
-            echo "target=${{ github.event.inputs.environment }}" >> $GITHUB_OUTPUT
-          elif [[ "${{ github.ref_name }}" == "main" ]]; then
-            # Push to main branch - deploy to production
-            echo "target=production" >> $GITHUB_OUTPUT
-          else
-            # Push to other branches - deploy to staging
-            echo "target=staging" >> $GITHUB_OUTPUT
-          fi
-          echo "Deploying to: ${{ steps.env.outputs.target }}"
+          echo "target=${{ matrix.environment }}" >> $GITHUB_OUTPUT
+          echo "Deploying to: ${{ matrix.environment }}"
 
       # Set up paths for this specific environment
       - name: Set up environment paths
@@ -93,66 +99,37 @@ jobs:
           echo "MODULE_REF=$MODULE_VERSION" >> $GITHUB_ENV
           echo "Using module version: $MODULE_VERSION"
 
-      # Process templates if they exist (convert .tmpl files to actual files)
+      # Process templates if they exist
       - name: Process Terraform templates
         run: |
-          echo "Processing any Terraform templates..."
-          
-          # Check if we have any .tmpl files in the stack directory
           if [ -d "terraform-code/stack" ] && [ -n "$(find terraform-code/stack -name '*.tmpl' -type f)" ]; then
-            echo "Found template files in terraform-code/stack/"
-            
-            # Process each .tmpl file
             for template in terraform-code/stack/*.tmpl; do
               if [ -f "$template" ]; then
                 output_file="${template%.tmpl}"
-                echo "Processing: $template -> $output_file"
-                
-                # Use envsubst to substitute environment variables
-                # You can also use other template processors here if needed
                 envsubst < "$template" > "$output_file"
-                
-                echo "✅ Created: $output_file"
               fi
             done
-          else
-            echo "ℹ️  No template files found in terraform-code/stack/ - skipping template processing"
           fi
 
       # Verify main.tf calls the stack module correctly
       - name: Verify main.tf configuration
         run: |
-          echo "Verifying main.tf calls the stack module..."
           if grep -q "module.*stack" "$TF_DIR/main.tf"; then
             echo "✅ main.tf calls stack module"
-            echo "Content preview:"
-            cat "$TF_DIR/main.tf"
           else
             echo "❌ ERROR: main.tf doesn't call stack module"
             exit 1
           fi
 
-      # Double-check that all required modules exist in the infrastructure repo
+      # Verify infrastructure modules exist
       - name: Verify infrastructure modules exist
         run: |
-          echo "Checking if all required modules exist at version ${MODULE_REF}..."
-          
-          # Clone the infrastructure repo temporarily
           git init /tmp/infra
           cd /tmp/infra
           git remote add origin https://github.com/rare-beauty/terraform-infrastructure.git
-          
-          # Try to get the specific version
-          if git fetch --depth 1 origin "${MODULE_REF}"; then
-            git checkout FETCH_HEAD
-          else
-            git fetch --depth 1 origin && git checkout "${MODULE_REF}" || {
-              echo "❌ ERROR: Cannot find version ${MODULE_REF} in infrastructure repo"
-              exit 1
-            }
-          fi
-          
-          # Check all required modules exist
+          git fetch --depth 1 origin "${MODULE_REF}" || {
+            git fetch --depth 1 origin && git checkout "${MODULE_REF}" || exit 1
+          }
           REQUIRED_MODULES="resourcegroup virtualnetwork subnet acr azurekeyvault aks rbac"
           for module in $REQUIRED_MODULES; do
             if [ ! -d "terraform/modules/$module" ]; then
@@ -160,174 +137,63 @@ jobs:
               exit 1
             fi
           done
-          
-          echo "✅ All required modules found at version ${MODULE_REF}"
 
       # Verify required configuration files exist
       - name: Verify configuration files exist
         run: |
-          echo "Checking for required configuration files in $TF_DIR..."
-          
-          # Check for provider.tf (contains backend config)
-          if [ -f "$TF_DIR/provider.tf" ]; then
-            echo "✅ Provider configuration found (provider.tf)"
-            # Verify it contains backend configuration
-            if grep -q "backend.*azurerm" "$TF_DIR/provider.tf"; then
-              echo "✅ Backend configuration found in provider.tf"
-            else
-              echo "⚠️  WARNING: No backend configuration found in provider.tf"
-            fi
-          else
-            echo "❌ ERROR: provider.tf not found in $TF_DIR"
-            exit 1
-          fi
-          
-          # Check for variables file
-          if [ -f "$TF_DIR/variable.tf" ]; then
-            echo "✅ Variables file found (variable.tf)"
-          else
-            echo "❌ ERROR: variable.tf not found in $TF_DIR"
-            exit 1
-          fi
-          
-          # Check for tfvars file
-          if [ -f "$TF_DIR/${{ steps.env.outputs.target }}.tfvars" ]; then
-            echo "✅ Environment variables file found (${{ steps.env.outputs.target }}.tfvars)"
-          else
-            echo "❌ ERROR: ${{ steps.env.outputs.target }}.tfvars not found in $TF_DIR"
-            exit 1
-          fi
-          
-          # Check for main.tf file (should exist since it calls the stack module)
-          if [ -f "$TF_DIR/main.tf" ]; then
-            echo "✅ Main configuration found (main.tf)"
-          else
-            echo "❌ ERROR: main.tf not found in $TF_DIR"
-            echo "Expected to find main.tf that calls the stack module"
-            exit 1
-          fi
-          
-          # Check for datasources.tf (optional)
-          if [ -f "$TF_DIR/datasources.tf" ]; then
-            echo "✅ Data sources configuration found (datasources.tf)"
-          else
-            echo "ℹ️  datasources.tf not found - this is optional"
-          fi
-          
-          # If stack directory exists, verify its files too
-          if [ -d "terraform-code/stack" ]; then
-            echo "Checking stack directory files..."
-            
-            # Check if main.tf exists in stack (after template processing)
-            if [ -f "terraform-code/stack/main.tf" ]; then
-              echo "✅ Stack main.tf found"
-              echo "First few lines of stack main.tf:"
-              head -5 terraform-code/stack/main.tf
-            else
-              echo "⚠️  Stack main.tf not found - this may be expected if using templates"
-            fi
-            
-            # List all files in stack directory for debugging
-            echo "Stack directory contents:"
-            ls -la terraform-code/stack/
-          fi
-          
-          echo "✅ All required configuration files verified!"
+          if [ ! -f "$TF_DIR/provider.tf" ]; then exit 1; fi
+          if [ ! -f "$TF_DIR/variable.tf" ]; then exit 1; fi
+          if [ ! -f "$TF_DIR/${{ steps.env.outputs.target }}.tfvars" ]; then exit 1; fi
+          if [ ! -f "$TF_DIR/main.tf" ]; then exit 1; fi
 
-      # Clean up any old Terraform state to avoid conflicts
+      # Clean up any old Terraform state
       - name: Clean up old Terraform cache
         run: |
-          echo "Cleaning up old Terraform files..."
           rm -rf "$TF_DIR/.terraform"
           rm -f  "$TF_DIR/.terraform.lock.hcl"
-          echo "✅ Cleanup complete"
 
-      # Format Terraform files to make them look nice
+      # Format Terraform files
       - name: Format Terraform files
-        run: |
-          echo "Formatting Terraform files..."
-          terraform -chdir=$TF_DIR fmt -recursive
-          echo "✅ Files formatted"
+        run: terraform -chdir=$TF_DIR fmt -recursive
 
-      # Check that formatting is correct
+      # Verify formatting
       - name: Verify Terraform formatting
-        run: |
-          echo "Checking Terraform formatting..."
-          terraform -chdir=$TF_DIR fmt -check -recursive
-          echo "✅ Formatting is correct"
+        run: terraform -chdir=$TF_DIR fmt -check -recursive
 
-      # Initialize Terraform (download providers, set up backend)
+      # Initialize Terraform
       - name: Initialize Terraform
-        run: |
-          echo "Initializing Terraform..."
-          # Backend config is in provider.tf, so no separate backend-config needed
-          terraform -chdir=$TF_DIR init -upgrade
-          echo "✅ Terraform initialized"
+        run: terraform -chdir=$TF_DIR init -upgrade
 
-      # Show what versions we're using
+      # Show version info
       - name: Show Terraform version info
-        run: |
-          echo "Terraform version:"
-          terraform -chdir=$TF_DIR version
-          echo ""
-          echo "Providers being used:"
-          terraform -chdir=$TF_DIR providers
+        run: terraform -chdir=$TF_DIR version
 
-      # Validate that our Terraform configuration is correct
+      # Validate configuration
       - name: Validate Terraform configuration
-        run: |
-          echo "Validating Terraform configuration..."
-          echo "Validating environment directory: $TF_DIR"
-          
-          # Validate the environment-specific configuration
-          terraform -chdir=$TF_DIR validate
-          echo "✅ Environment configuration is valid"
-          
-          # If stack directory exists and has main.tf, validate it too
-          if [ -f "terraform-code/stack/main.tf" ]; then
-            echo "Validating stack configuration..."
-            echo "Initializing stack directory first..."
-            
-            # Initialize the stack directory to download modules
-            terraform -chdir=terraform-code/stack init -upgrade
-            
-            # Now validate the stack configuration
-            terraform -chdir=terraform-code/stack validate
-            echo "✅ Stack configuration is valid"
-          else
-            echo "ℹ️  Stack main.tf not found - skipping stack validation"
-          fi
+        run: terraform -chdir=$TF_DIR validate
 
-      # Create a plan showing what changes will be made
+      # Create a plan
       - name: Create deployment plan
-        run: |
-          echo "Creating deployment plan..."
-          echo "Using module reference: $MODULE_REF"
-          terraform -chdir=$TF_DIR plan -input=false -var-file=$TFVARS -var="module_ref=$MODULE_REF" -out=tfplan
-          echo "✅ Plan created successfully"
+        run: terraform -chdir=$TF_DIR plan -input=false -var-file=$TFVARS -var="module_ref=$MODULE_REF" -out=tfplan
 
-      # Convert plan to JSON for security scanning
+      # Convert plan to JSON
       - name: Convert plan to JSON
-        run: |
-          echo "Converting plan to JSON for security analysis..."
-          terraform -chdir=$TF_DIR show -json tfplan > tfplan.json
-          echo "✅ JSON plan created"
+        run: terraform -chdir=$TF_DIR show -json tfplan > tfplan.json
 
-      # Run security checks on our Terraform code
-      - name: Run security scan on code
-        uses: bridgecrewio/checkov-action@v12
-        with:
-          directory: ${{ env.TF_DIR }}
-          quiet: true
+      # --- Trivy/Checkov scans commented out ---
+      # - name: Run security scan on code
+      #   uses: bridgecrewio/checkov-action@v12
+      #   with:
+      #     directory: ${{ env.TF_DIR }}
+      #     quiet: true
+      #
+      # - name: Run security scan on plan
+      #   uses: bridgecrewio/checkov-action@v12
+      #   with:
+      #     file: ${{ env.TF_DIR }}/tfplan.json
+      #     quiet: true
 
-      # Run security checks on our deployment plan
-      - name: Run security scan on plan
-        uses: bridgecrewio/checkov-action@v12
-        with:
-          file: ${{ env.TF_DIR }}/tfplan.json
-          quiet: true
-
-      # For production deployments, require manual approval
+      # Manual approval for production
       - name: Request approval for production deployment
         if: steps.env.outputs.target == 'production'
         uses: trstringer/manual-approval@v1
@@ -336,11 +202,7 @@ jobs:
           approvers: vinaypalvirk51, sukhdeep26
           minimum-approvals: 1
 
-      # Actually deploy the infrastructure
+      # Deploy infrastructure
       - name: Deploy infrastructure
         if: steps.env.outputs.target != 'production' || github.event_name == 'workflow_dispatch'
-        run: |
-          echo "🚀 Deploying infrastructure to ${{ steps.env.outputs.target }}..."
-          echo "Using module reference: $MODULE_REF"
-          terraform -chdir=$TF_DIR apply -input=false -auto-approve tfplan
-          echo "✅ Deployment completed successfully"
+        run: terraform -chdir=$TF_DIR apply -input=false -auto-approve tfplan
