@@ -54,7 +54,7 @@ output "aks_kubelet_identity" {
   description = "AKS kubelet identity object ID"
 }
 
-
+# Only keep if your AKS module exports it; otherwise remove or add an output in the module.
 
 
 

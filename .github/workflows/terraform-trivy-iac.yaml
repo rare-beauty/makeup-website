@@ -4,12 +4,12 @@ on:
   # Run when someone opens a PR that changes infrastructure code
   pull_request:
     paths: ['terraform-code/**']
-
+  
   # Run when code is pushed to dev or main branches
   push:
     branches: [ dev, main ]
     paths: ['terraform-code/**']
-
+  
   # Allow manual deployment with environment selection
   workflow_dispatch:
     inputs:
@@ -30,26 +30,11 @@ concurrency:
 
 jobs:
   deploy:
-    name: Deploy Infrastructure — ${{ matrix.environment }}
+    name: Deploy Infrastructure
     runs-on: ubuntu-latest
-
-    # Matrix to create two UI "windows" (staging & production)
-    strategy:
-      matrix:
-        environment: [staging, production]
-
-    # Only run the appropriate matrix job based on trigger
-    # - workflow_dispatch: run only the selected input environment
-    # - push main: run production job
-    # - push dev (or anything else): run staging job
-    if: >
-      (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == matrix.environment) ||
-      (github.event_name != 'workflow_dispatch' &&
-        ((github.ref_name == 'refs/heads/main' && matrix.environment == 'production') ||
-         (github.ref_name != 'refs/heads/main' && matrix.environment == 'staging')))
-
-    # Choose environment based on how the workflow was triggered (UI shows separate env per job)
-    environment: ${{ matrix.environment }}
+    
+    # Choose environment based on how the workflow was triggered
+    environment: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || (github.ref_name == 'main' && 'production' || 'staging') }}
 
     # Azure credentials for authentication
     env:
@@ -67,8 +52,14 @@ jobs:
       - name: Determine target environment
         id: env
         run: |
-          echo "target=${{ matrix.environment }}" >> $GITHUB_OUTPUT
-          echo "Deploying to: ${{ matrix.environment }}"
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "target=${{ github.event.inputs.environment }}" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref_name }}" == "main" ]]; then
+            echo "target=production" >> $GITHUB_OUTPUT
+          else
+            echo "target=staging" >> $GITHUB_OUTPUT
+          fi
+          echo "Deploying to: ${{ steps.env.outputs.target }}"
 
       # Set up paths for this specific environment
       - name: Set up environment paths
