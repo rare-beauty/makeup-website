@@ -115,16 +115,34 @@ jobs:
       # Verify infrastructure modules exist
       - name: Verify infrastructure modules exist
         run: |
+          set -euo pipefail
+
           git init /tmp/infra
           cd /tmp/infra
           git remote add origin https://github.com/rare-beauty/terraform-infrastructure.git
-          git fetch --depth 1 origin "${MODULE_REF}" || {
-            git fetch --depth 1 origin && git checkout "${MODULE_REF}" || exit 1
-          }
+
+          # fetch & checkout the requested ref (branch, tag, or SHA)
+          if git fetch --depth=1 origin "${MODULE_REF}"; then
+            git checkout -q FETCH_HEAD || git checkout -q "${MODULE_REF}" || true
+          else
+            git fetch --depth=1 origin main
+            git checkout -q main
+          fi
+
           REQUIRED_MODULES="resourcegroup virtualnetwork subnet acr azurekeyvault aks rbac"
+
           for module in $REQUIRED_MODULES; do
-            if [ ! -d "terraform/modules/$module" ]; then
+            if   [ -d "$module" ]; then
+              : # found at repo root (matches //resourcegroup style)
+            elif [ -d "terraform/modules/$module" ]; then
+              : # found in terraform/modules
+            elif [ -d "modules/$module" ]; then
+              : # found in modules
+            elif [ -d "terraform/$module" ]; then
+              : # found in terraform
+            else
               echo "❌ ERROR: Missing required module: $module"
+              echo "Checked: ./$module, ./terraform/modules/$module, ./modules/$module, ./terraform/$module"
               exit 1
             fi
           done
