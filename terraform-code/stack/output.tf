@@ -35,7 +35,7 @@ output "acr_id" {
 # If (and only if) your ACR module exports this, keep it; otherwise delete it or add an output in the module.
 # output "acr_login_server" {
 #   value       = module.acr.login_server
-#   description = "ACR login server (e.g., myacr.azurecr.io)"
+#   description = "ACR login server (e.g., myacr.azurecr.io)
 # }
 
 # -------------------
