@@ -86,8 +86,8 @@ module "aks" {
   vm_size                 = var.cfg.node_vm_size
   host_encryption_enabled = true
   local_account_disabled  = false
-  oidc_issuer_enabled       = var.oidc_issuer_enabled
-  workload_identity_enabled = var.workload_identity_enabled
+  oidc_issuer_enabled       = var.cfg.oidc_issuer_enabled
+  workload_identity_enabled = var.cfg.workload_identity_enabled
   environment             = var.cfg.environment
 
   # Networking & ACR Integration
