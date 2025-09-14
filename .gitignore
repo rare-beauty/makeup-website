@@ -1,58 +1,74 @@
-﻿# Local .terraform directories
-#.terraform/
+﻿# =========================
+# Universal
+# =========================
+.DS_Store
+Thumbs.db
 
-# .tfstate files
-# *.tfstate
+# IDEs/editors
+.vscode/
+.idea/
+
+# Logs & temp
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+*.tmp
+.tmp/
+temp/
+
+# =========================
+# Node.js (monorepo)
+# =========================
+**/node_modules/**
+bower_components/
+coverage/
+.nyc_output/
+dist/
+build/
+
+# Env files (keep examples)
+.env
+.env.*
+!.env.example
+
+# Package managers cache
+.pnpm-store/
+.npm/
+.yarn/
+.yarn/cache/
+.yarn/unplugged/
+.yarn/build-state.yml
+.yarn/install-state.gz
+
+# =========================
+# Terraform
+# =========================
+# Working dirs created by `terraform init`
+**/.terraform/**
+**/node_modules/**
+
+# State files
+*.tfstate
 *.tfstate.*
-
-# Crash log files
+.terraform.tfstate.lock.info
 crash.log
 crash.*.log
 
-# Exclude all .tfvars files, which are likely to contain sensitive data, such as
-# password, private keys, and other secrets. These should not be part of version 
-# control as they are data points which are potentially sensitive and subject 
-# to change depending on the environment.
-# *.tfvars
+# Plans
+*.tfplan
+*.plan
+
+# Vars (often secrets)
+*.tfvars
+*.auto.tfvars
 *.tfvars.json
 
-# Ignore override files as they are usually used to override resources locally and so
-# are not checked in
+# Local overrides
 override.tf
 override.tf.json
 *_override.tf
 *_override.tf.json
 
-# Ignore transient lock info files created by terraform apply
-.terraform.tfstate.lock.info
-
-# Include override files you do wish to add to version control using negated pattern
-# !example_override.tf
-
-# Include tfplan files to ignore the plan output of command: terraform plan -out=tfplan
-# example: *tfplan*
-
-# Ignore CLI configuration files
-.terraformrc
-terraform.rc
-# /E_commerce_project/web
-
-terraform/Readme.txt
-
-* text eol=lf
-
-/E_commerce_project/
-
-node_modules/
-uploads/
-*.log
-
-# Ensure Terraform and code files always use LF
-*.tf text eol=lf
-*.tfvars text eol=lf
-*.sh text eol=lf
-*.yml text eol=lf
-*.yaml text eol=lf
-
-# For Windows-specific files, allow CRLF if needed
-*.bat text eol=crlf
+# Always keep the lock file tracked
+!**/.terraform.lock.hcl
