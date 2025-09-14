@@ -86,6 +86,8 @@ module "aks" {
   vm_size                 = var.cfg.node_vm_size
   host_encryption_enabled = true
   local_account_disabled  = false
+  oidc_issuer_enabled       = var.oidc_issuer_enabled
+  workload_identity_enabled = var.workload_identity_enabled
   environment             = var.cfg.environment
 
   # Networking & ACR Integration
@@ -100,23 +102,23 @@ module "aks" {
 #################################
 module "rbac" {
   source = "git::https://github.com/rare-beauty/terraform-infrastructure.git//terraform/modules/rbac?ref=v1"
-  # tags  = local.tags
+  
+  enabled = contains(["staging", "production"], var.cfg.environment)
+  
+  assignments = {
 
-  # No 'enabled' arg (to support older module versions).
-  # Instead, conditionally pass assignments only in production.
-  assignments = var.cfg.environment == "production" ? [
     # AKS can pull images from ACR
-    {
+    aks_acr_pull = {
       principal_id    = module.aks.kubelet_identity
       role_definition = "AcrPull"
       scope           = module.acr.acr_id
-    },
-    # AKS can access Key Vault secrets
-    {
-      principal_id    = module.aks.kubelet_identity
-      role_definition = "Key Vault Secrets User"
-      scope           = module.keyvault.key_vault_id
     }
-  ] : []
+     # aks can access keyvault
+    # aks_kv_secrets = {
+    #   principal_id    = module.aks.kubelet_identity
+    #   role_definition = "Key Vault Secrets User"
+    #   scope           = module.keyvault.key_vault_id
+    # }
+  }  
 }
 
