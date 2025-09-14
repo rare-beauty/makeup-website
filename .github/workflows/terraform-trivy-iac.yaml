@@ -211,11 +211,12 @@ jobs:
           fi
 
           # If it exists in Azure, import it; otherwise Terraform will create it during apply
-          if az group exists -n "$RG_NAME"; then
+          if [ "$(az group exists -n "$RG_NAME")" = "true" ]; then
             SUB_ID="${ARM_SUBSCRIPTION_ID}"
             RG_ID="/subscriptions/${SUB_ID}/resourceGroups/${RG_NAME}"
             echo "Importing existing RG into Terraform: $RG_ID"
             terraform -chdir="$TF_DIR" import -input=false \
+              -var-file="$TFVARS" \
               module.stack.module.resourcegroup.azurerm_resource_group.my_rg "$RG_ID"
           else
             echo "Azure RG '$RG_NAME' not found; Terraform will create it."
