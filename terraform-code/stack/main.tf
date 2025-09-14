@@ -81,7 +81,7 @@ module "aks" {
   aks_location = module.resourcegroup.resource_group_location
 
   dns_prefix              = var.cfg.dns_prefix
-  private_cluster_enabled = true
+  private_cluster_enabled = false
   node_count              = var.cfg.node_count
   vm_size                 = var.cfg.node_vm_size
   host_encryption_enabled = true
