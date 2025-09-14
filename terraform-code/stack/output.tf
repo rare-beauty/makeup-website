@@ -47,7 +47,7 @@ output "key_vault_id" {
 }
 
 # -------------------
-# AKS
+# AKS -
 # -------------------
 output "aks_kubelet_identity" {
   value       = module.aks.kubelet_identity
