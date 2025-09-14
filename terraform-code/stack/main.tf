@@ -92,12 +92,11 @@ module "aks" {
   vnet_subnet_id      = module.subnet.subnet_id
   acr_id              = module.acr.acr_id
   enable_azure_policy = true
-  # log_analytics_workspace_id = var.cfg.log_analytics_workspace_id
-  # tags                      = local.tags
+
 }
 
 #################################
-# RBAC Assignments
+# RBAC Assignments 
 #################################
 module "rbac" {
   source = "git::https://github.com/rare-beauty/terraform-infrastructure.git//terraform/modules/rbac?ref=v1"
