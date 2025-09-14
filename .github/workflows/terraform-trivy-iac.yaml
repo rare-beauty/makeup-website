@@ -22,6 +22,7 @@ on:
 permissions:
   id-token: write    # Needed for Azure authentication
   contents: read     # Needed to read the repository
+  issues: write      # Needed for manual-approval action to create an approval issue
 
 # Prevent multiple deployments running at the same time
 concurrency:
@@ -254,5 +255,5 @@ jobs:
 
       # Deploy infrastructure
       - name: Deploy infrastructure
-        if: steps.env.outputs.target != 'production' || github.event_name == 'workflow_dispatch'
+        if: steps.env.outputs.target != 'production' || github.ref_name == 'main' || github.event_name == 'workflow_dispatch'
         run: terraform -chdir=$TF_DIR apply -input=false -auto-approve tfplan
