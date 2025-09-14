@@ -24,8 +24,8 @@ jobs:
       - name: Azure Login via OIDC
         uses: azure/login@v2
         with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}           # env secret (staging)
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}           # repo secret (shared)
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}             # env secret (staging)
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}             # repo secret (shared)
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }} # repo secret (shared)
 
       # 2) Resolve ACR (env secret ACR_NAME → login server)
@@ -86,13 +86,18 @@ jobs:
         shell: bash
         run: |
           set -e
+          VERSION="${GITHUB_SHA::7}"   # minimal version tag
           built_any=0
           for svcdir in src/*; do
             if [ -f "$svcdir/Dockerfile" ]; then
               svc="$(basename "$svcdir")"
               echo "🐳 Building $svc (staging)"
-              docker build -t "${{ steps.acr.outputs.acr_login }}/$svc:staging" "$svcdir"
+              docker build \
+                -t "${{ steps.acr.outputs.acr_login }}/$svc:staging" \
+                -t "${{ steps.acr.outputs.acr_login }}/$svc:${VERSION}" \
+                "$svcdir"
               docker push "${{ steps.acr.outputs.acr_login }}/$svc:staging"
+              docker push "${{ steps.acr.outputs.acr_login }}/$svc:${VERSION}"
               built_any=1
             fi
           done
@@ -114,9 +119,9 @@ jobs:
       - name: Azure Login via OIDC
         uses: azure/login@v2
         with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}           # env secret (production)
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}           # repo secret
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }} # repo secret
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}               # env secret (production)
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}               # repo secret
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}   # repo secret
 
       - name: Resolve ACR (production)
         id: acr
@@ -179,13 +184,18 @@ jobs:
         shell: bash
         run: |
           set -e
+          VERSION="${GITHUB_SHA::7}"   # minimal version tag
           built_any=0
           for svcdir in src/*; do
             if [ -f "$svcdir/Dockerfile" ]; then
               svc="$(basename "$svcdir")"
               echo "🐳 Building $svc (production)"
-              docker build -t "${{ steps.acr.outputs.acr_login }}/$svc:production" "$svcdir"
+              docker build \
+                -t "${{ steps.acr.outputs.acr_login }}/$svc:production" \
+                -t "${{ steps.acr.outputs.acr_login }}/$svc:${VERSION}" \
+                "$svcdir"
               docker push "${{ steps.acr.outputs.acr_login }}/$svc:production"
+              docker push "${{ steps.acr.outputs.acr_login }}/$svc:${VERSION}"
               built_any=1
             fi
           done

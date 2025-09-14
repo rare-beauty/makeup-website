@@ -8,9 +8,9 @@ terraform {
   }
 
   backend "azurerm" {
-    resource_group_name  = "tfstate-rg"
-    storage_account_name = "tfstatestorage30aug"
-    container_name       = "tfstate"
+    resource_group_name  = "tfstate-rg4"
+    storage_account_name = "tfstatestorage30sept123"
+    container_name       = "tfstate4"
     use_azuread_auth     = true
     key                  = "staging.terraform.tfstate"
   }

@@ -4,12 +4,12 @@ on:
   # Run when someone opens a PR that changes infrastructure code
   pull_request:
     paths: ['terraform-code/**']
-  
+
   # Run when code is pushed to dev or main branches
   push:
     branches: [ dev, main ]
     paths: ['terraform-code/**']
-  
+
   # Allow manual deployment with environment selection
   workflow_dispatch:
     inputs:
@@ -32,7 +32,7 @@ jobs:
   deploy:
     name: Deploy Infrastructure
     runs-on: ubuntu-latest
-    
+
     # Choose environment based on how the workflow was triggered
     environment: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || (github.ref_name == 'main' && 'production' || 'staging') }}
 
@@ -83,23 +83,28 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      # Read which version of modules to use
-      - name: Read module version
+      # Extract infra module ref from stack/main.tf (e.g., v1 / v0.2.0)
+      - name: Extract infra ref from stack/main.tf
+        id: infra
         run: |
-          MODULE_VERSION=$(cat $TF_DIR/module-ref.txt | tr -d '[:space:]')
-          echo "MODULE_REF=$MODULE_VERSION" >> $GITHUB_ENV
-          echo "Using module version: $MODULE_VERSION"
-
-      # Process templates if they exist
-      - name: Process Terraform templates
-        run: |
-          if [ -d "terraform-code/stack" ] && [ -n "$(find terraform-code/stack -name '*.tmpl' -type f)" ]; then
-            for template in terraform-code/stack/*.tmpl; do
-              if [ -f "$template" ]; then
-                output_file="${template%.tmpl}"
-                envsubst < "$template" > "$output_file"
-              fi
-            done
+          set -euo pipefail
+          FILE="terraform-code/stack/main.tf"
+          if [[ ! -f "$FILE" ]]; then
+            echo "::error::Missing $FILE. Commit your stack/main.tf with pinned module refs (?ref=...)."
+            exit 1
+          fi
+          REFS=$(grep -o 'ref=[^"]*' "$FILE" | sed 's/.*ref=//' | sort -u || true)
+          if [[ -z "${REFS}" ]]; then
+            echo "::warning::No ?ref= found in $FILE. Defaulting to 'main'."
+            echo "ref=main" >> "$GITHUB_OUTPUT"
+          else
+            REF=$(echo "$REFS" | head -n1)
+            COUNT=$(echo "$REFS" | wc -l)
+            if [[ "$COUNT" -gt 1 ]]; then
+              echo "::warning::Multiple refs found in $FILE: [$REFS]. Using '$REF'."
+            fi
+            echo "ref=$REF" >> "$GITHUB_OUTPUT"
+            echo "Using infra ref: $REF"
           fi
 
       # Verify main.tf calls the stack module correctly
@@ -112,34 +117,36 @@ jobs:
             exit 1
           fi
 
-      # Verify infrastructure modules exist
+      # Verify infrastructure modules exist at the extracted ref
       - name: Verify infrastructure modules exist
         run: |
           set -euo pipefail
+
+          REF="${{ steps.infra.outputs.ref }}"
+          echo "Checking terraform-infrastructure at ref: $REF"
 
           git init /tmp/infra
           cd /tmp/infra
           git remote add origin https://github.com/rare-beauty/terraform-infrastructure.git
 
-          # fetch & checkout the requested ref (branch, tag, or SHA)
-          if git fetch --depth=1 origin "${MODULE_REF}"; then
-            git checkout -q FETCH_HEAD || git checkout -q "${MODULE_REF}" || true
+          if git fetch --depth=1 origin "$REF"; then
+            git checkout -q FETCH_HEAD || git checkout -q "$REF" || true
           else
+            echo "::warning::Failed to fetch ref '$REF'; falling back to 'main'."
             git fetch --depth=1 origin main
             git checkout -q main
           fi
 
           REQUIRED_MODULES="resourcegroup virtualnetwork subnet acr azurekeyvault aks rbac"
-
           for module in $REQUIRED_MODULES; do
             if   [ -d "$module" ]; then
-              : # found at repo root (matches //resourcegroup style)
+              :
             elif [ -d "terraform/modules/$module" ]; then
-              : # found in terraform/modules
+              :
             elif [ -d "modules/$module" ]; then
-              : # found in modules
+              :
             elif [ -d "terraform/$module" ]; then
-              : # found in terraform
+              :
             else
               echo "❌ ERROR: Missing required module: $module"
               echo "Checked: ./$module, ./terraform/modules/$module, ./modules/$module, ./terraform/$module"
@@ -155,7 +162,7 @@ jobs:
           if [ ! -f "$TF_DIR/${{ steps.env.outputs.target }}.tfvars" ]; then exit 1; fi
           if [ ! -f "$TF_DIR/main.tf" ]; then exit 1; fi
 
-      # Clean up any old Terraform state
+      # Clean up any old Terraform state cache
       - name: Clean up old Terraform cache
         run: |
           rm -rf "$TF_DIR/.terraform"
@@ -216,7 +223,7 @@ jobs:
 
       # Create a plan
       - name: Create deployment plan
-        run: terraform -chdir=$TF_DIR plan -input=false -var-file=$TFVARS -var="module_ref=$MODULE_REF" -out=tfplan
+        run: terraform -chdir=$TF_DIR plan -input=false -var-file=$TFVARS -out=tfplan
 
       # Convert plan to JSON
       - name: Convert plan to JSON

@@ -1,19 +1,19 @@
 cfg = {
-  resource_group_name     = "staging-rg"
+  resource_group_name     = "staging-rg4"
   resource_group_location = "westus"
 
-  v_name                  = "staging-vnet"
+  v_name                  = "stage-vnet"
   address_ip              = ["10.10.0.0/16"]
-  subnet_name             = "staging-subnet"
+  subnet_name             = "stage-subnet"
   subnet_address_prefixes = ["10.10.1.0/24"]
 
-  acr_name = "stagingacr123"
+  acr_name = "stagingacr947"
   acr_sku  = "Basic" # cheaper than Standard
 
-  keyvault_name = "staging-kv123"
+  keyvault_name = "staging-kv947"
 
-  aks          = "staging-aks"
-  dns_prefix   = "stagingaks"
+  aks          = "stage-aks"
+  dns_prefix   = "stageaks"
   node_count   = 1             
   node_vm_size = "Standard_B2s" # AKS needs >=2 vCPU; B1s won't work
 
