@@ -100,25 +100,25 @@ module "aks" {
 #################################
 # RBAC Assignments 
 #################################
-module "rbac" {
-  source = "git::https://github.com/rare-beauty/terraform-infrastructure.git//terraform/modules/rbac?ref=v2"
+# module "rbac" {
+#   source = "git::https://github.com/rare-beauty/terraform-infrastructure.git//terraform/modules/rbac?ref=v2"
   
-  enabled = contains(["staging", "production"], var.cfg.environment)
+#   enabled = contains(["staging", "production"], var.cfg.environment)
   
-  assignments = {
+#   assignments = {
 
-    # AKS can pull images from ACR
-    aks_acr_pull = {
-      principal_id    = module.aks.kubelet_identity
-      role_definition = "AcrPull"
-      scope           = module.acr.acr_id
-    }
+#     # AKS can pull images from ACR
+#     aks_acr_pull = {
+#       principal_id    = module.aks.kubelet_identity
+#       role_definition = "AcrPull"
+#       scope           = module.acr.acr_id
+#     }
      # aks can access keyvault
     # aks_kv_secrets = {
     #   principal_id    = module.aks.kubelet_identity
     #   role_definition = "Key Vault Secrets User"
     #   scope           = module.keyvault.key_vault_id
     # }
-  }  
-}
+#   }  
+# }
 
