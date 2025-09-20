@@ -7,21 +7,19 @@
 
 # ---- build stage ----
 FROM node:18-alpine AS build
+WORKDIR /app
 
-# Work directly in the frontend folder
-WORKDIR /app/src/frontend
+# 1) deps for THIS service (context is src/frontend)
+COPY package*.json ./
+RUN npm ci
 
-# 1) Install deps (cache-friendly)
-COPY src/frontend/package*.json ./
-RUN npm install
+# 2) copy app code and build
+COPY . .
+RUN npm run build    # creates /app/build
 
-# 2) Copy the app code and build
-COPY src/frontend/ .
-RUN npm run build
-
-# ---- runtime stage ----
+# ---- runtime ----
 FROM nginx:alpine
 RUN rm -rf /usr/share/nginx/html/*
-COPY --from=build /app/src/frontend/build /usr/share/nginx/html
+COPY --from=build /app/build /usr/share/nginx/html
 EXPOSE 80
 CMD ["nginx","-g","daemon off;"]
