@@ -13,7 +13,7 @@ WORKDIR /app/src/frontend
 
 # 1) Install deps (cache-friendly)
 COPY src/frontend/package*.json ./
-RUN npm ci
+RUN npm install
 
 # 2) Copy the app code and build
 COPY src/frontend/ .
