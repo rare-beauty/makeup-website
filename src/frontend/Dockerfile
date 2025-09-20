@@ -7,20 +7,19 @@
 
 # ---- build stage ----
 FROM node:18-alpine AS build
-WORKDIR /app
 
-# Install ONLY the frontend deps first (leverages Docker cache)
-COPY src/frontend/package*.json ./src/frontend/
-RUN cd src/frontend && npm ci
-
-# Now copy the whole repo (code)
-COPY . .
-
-# Build the frontend app
+# Work directly in the frontend folder
 WORKDIR /app/src/frontend
-RUN npm run build   # produces /app/src/frontend/build
 
-# ---- final runtime stage ----
+# 1) Install deps (cache-friendly)
+COPY src/frontend/package*.json ./
+RUN npm ci
+
+# 2) Copy the app code and build
+COPY src/frontend/ .
+RUN npm run build
+
+# ---- runtime stage ----
 FROM nginx:alpine
 RUN rm -rf /usr/share/nginx/html/*
 COPY --from=build /app/src/frontend/build /usr/share/nginx/html
