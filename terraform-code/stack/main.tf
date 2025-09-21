@@ -32,7 +32,7 @@ module "subnet" {
   # tags                  = local.tags
   # new inputs
   location   = module.resourcegroup.resource_group_location
-  create_nsg = true
+  create_nsg = false
   # nsg_name = "my-custom-nsg"  # optional
 }
 
