@@ -21,7 +21,7 @@ variable "cfg" {
     node_vm_size = string
     environment  = string
     # oidc_issuer_enabled = bool
-    # workload_identity_enabled = bool
+    # workload_identity_enabled = boolean
   })
 }
 
