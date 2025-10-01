@@ -35,7 +35,7 @@ jobs:
     runs-on: ubuntu-latest
 
     # Choose environment based on how the workflow was triggered
-    environment: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || (github.ref_name == 'main' && 'production' || 'staging') }}
+    # environment: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || (github.ref_name == 'main' && 'production' || 'staging') }}
 
     # Azure credentials for authentication
     env:
