@@ -8,11 +8,10 @@ terraform {
   }
 
   backend "azurerm" {
-    resource_group_name  = "tfstate-rg4"
-    storage_account_name = "tfstate30sept123"
-    container_name       = "tfstate4"
-    use_azuread_auth     = true
-    key                  = "production.terraform.tfstate"
+    resource_group_name  = "rg-infra-staging"
+    storage_account_name = "infrastatestaging01"
+    container_name       = "tfstate"
+    key                  = "infra/production.tfstate"
   }
 }
 

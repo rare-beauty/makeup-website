@@ -1,0 +1,27 @@
+.git
+node_modules
+**/node_modules
+.DS_Store
+
+
+build
+dist
+
+
+# Windows-only scripts keep CRLF
+*.bat           text eol=crlf
+*.cmd           text eol=crlf
+*.ps1           text eol=crlf
+
+# Common text that should be LF
+*.sh            text eol=lf
+*.yml           text eol=lf
+*.yaml          text eol=lf
+*.tf            text eol=lf
+*.tfvars        text eol=lf
+*.json          text eol=lf
+*.js            text eol=lf
+*.ts            text eol=lf
+*.tsx           text eol=lf
+# Covers the usual Dockerfile name
+Dockerfile      text eol=lf

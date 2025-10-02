@@ -1,1 +1,0 @@
-az role assignment create --assignee 5f676da1-13cf-4c8a-8b77-9765d50963c4 --role AcrPush --scope "/subscriptions/0aebd59b-0fa7-463c-b58d-3596e3b848ea/resourceGroups/staging-rg/providers/Microsoft.ContainerRegistry/registries/stagingacr123"
