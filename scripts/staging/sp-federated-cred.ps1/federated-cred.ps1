@@ -3,7 +3,7 @@ $Owner  = "rare-beauty"   # organisation name
 
 $Branch = "dev"                 # staging branch 
 $AppId  = "7e545c24-99fc-4ac5-8a03-a7916dde8bff"        # the appId (clientId) you already have
-$Name   = "github-oidc-$Branch" # any short name
+$Name   = "github-oidc-env-staging" # any short name
 
 # (login first if needed)
 az login 
@@ -17,13 +17,13 @@ $AppObjectId = az ad app show --id $AppId --query id -o tsv
 {
   "name": "$Name",
   "issuer": "https://token.actions.githubusercontent.com",
-  "subject": "repo:$Owner/makeup-website:ref:refs/heads/$Branch",
+  "subject": "repo:$Owner/makeup-website:environment:staging",
   "audiences": ["api://AzureADTokenExchange"]
 }
-"@ | Set-Content -Path "federated-dev.json" -Encoding utf8
+"@ | Set-Content -Path "fc-env-staging.json" -Encoding utf8
 
 # create the federated credential (NO @ before filename)
-az ad app federated-credential create --id $AppObjectId --parameters "federated-dev.json"
+az ad app federated-credential create --id $AppObjectId --parameters "fc-env-staging.json"
 
 # verify
 az ad app federated-credential list --id $AppObjectId -o table
