@@ -1,23 +1,21 @@
+# syntax=docker/dockerfile:1
 FROM node:20-alpine
-
-# allow binding to ports <1024 without root
-RUN apk add --no-cache libcap \
-  && setcap 'cap_net_bind_service=+ep' /usr/local/bin/node
 
 WORKDIR /app
 
-# install deps (better layer caching)
+# Install ALL deps (incl. dev) to satisfy your requirement
 COPY package*.json ./
-RUN npm ci --omit=dev
+RUN npm ci
 
-# copy app
+# Copy source
 COPY . .
 
-ENV NODE_ENV=production
+# App listens on 80 (matches your current Deployment/probes)
 ENV PORT=80
 EXPOSE 80
 
-# stay non-root
+# Run as non-root
 USER node
 
-CMD ["npm", "start"]
+# Start
+CMD ["node", "index.js"]
