@@ -3,19 +3,16 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# Install ALL deps (incl. dev) to satisfy your requirement
+# install all deps (dev + prod)
 COPY package*.json ./
 RUN npm ci
 
-# Copy source
+# copy source
 COPY . .
 
-# App listens on 80 (matches your current Deployment/probes)
+# app listens on 80 (matches your Deployment/probes)
 ENV PORT=80
 EXPOSE 80
 
-# Run as non-root
-USER node
-
-# Start
+# run as root (default) — just don't set USER
 CMD ["node", "index.js"]
