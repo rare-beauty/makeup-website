@@ -1,20 +1,23 @@
 FROM node:20-alpine
 
+# allow binding to ports <1024 without root
+RUN apk add --no-cache libcap \
+  && setcap 'cap_net_bind_service=+ep' /usr/local/bin/node
+
 WORKDIR /app
 
-# install deps first (better caching)
+# install deps (better layer caching)
 COPY package*.json ./
 RUN npm ci --omit=dev
 
-# copy app code
+# copy app
 COPY . .
 
-# make the port configurable; default 8080
 ENV NODE_ENV=production
-ENV PORT=8080
-EXPOSE 8080
+ENV PORT=80
+EXPOSE 80
 
-# run as non-root (alpine node image has a 'node' user)
+# stay non-root
 USER node
 
 CMD ["npm", "start"]
