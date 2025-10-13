@@ -20,8 +20,7 @@ variable "cfg" {
     node_count   = number
     node_vm_size = string
     environment  = string
-    oidc_issuer_enabled = bool
-    workload_identity_enabled = bool
+    
     k8s_namespace           = string
     serviceaccount_name     = string
   })
