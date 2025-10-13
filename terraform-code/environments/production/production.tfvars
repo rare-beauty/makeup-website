@@ -16,6 +16,11 @@ cfg = {
   dns_prefix   = "productionaks010"
   node_count   = 1              # lowest cost
   node_vm_size = "Standard_B2s" # AKS-compatible, cheap
+  oidc_issuer_enabled = true
+  workload_identity_enabled = true
+
+  k8s_namespace       = "makeup-production"
+  serviceaccount_name = "wi-sa-prod"
 
   environment = "production" # or "prod" if you prefer; 
   //aks_module_ref = "68f8b1849a9241b11057ba3625a94f97b5acc242"
