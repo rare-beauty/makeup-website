@@ -143,13 +143,13 @@ module "rbac" {
   
   enabled = contains(["staging", "production"], var.cfg.environment)
   
-  assignments = [
-    {
+  assignments = {
+    wi_kv = {
       principal_id    = azurerm_user_assigned_identity.wi_app.principal_id
       role_definition = "Key Vault Secrets User"
       scope           = data.azurerm_key_vault.kv_for_wi.id
     }
-  ]
+}
 }
 
 #     # AKS can pull images from ACR
