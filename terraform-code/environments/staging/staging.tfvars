@@ -16,7 +16,8 @@ cfg = {
   dns_prefix   = "stageaks010"
   node_count   = 1             
   node_vm_size = "Standard_B2s" # AKS needs >=2 vCPU; B1s won't work
- 
+  oidc_issuer_enabled = true
+  workload_identity_enabled = true
   k8s_namespace       = "makeup-staging"
   serviceaccount_name = "wi-sa"
   

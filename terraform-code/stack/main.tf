@@ -2,7 +2,7 @@
 # Resource Group
 #################################
 module "resourcegroup" {
-  source                  = "git::https://github.com/rare-beauty/terraform-infrastructure.git//terraform/modules/resourcegroup?ref=v2.1"
+  source                  = "git::https://github.com/rare-beauty/terraform-infrastructure.git//terraform/modules/resourcegroup?ref=v2.2"
   resource_group_name     = var.cfg.resource_group_name
   resource_group_location = var.cfg.resource_group_location
   # tags                  = local.tags
@@ -12,7 +12,7 @@ module "resourcegroup" {
 # Virtual Network
 #################################
 module "vnet" {
-  source             = "git::https://github.com/rare-beauty/terraform-infrastructure.git//terraform/modules/virtualnetwork?ref=v2.1"
+  source             = "git::https://github.com/rare-beauty/terraform-infrastructure.git//terraform/modules/virtualnetwork?ref=v2.2"
   resourcegroup_name = module.resourcegroup.resource_group_name
   v_location         = module.resourcegroup.resource_group_location
   v_name             = var.cfg.v_name
@@ -24,7 +24,7 @@ module "vnet" {
 # Subnet
 #################################
 module "subnet" {
-  source                  = "git::https://github.com/rare-beauty/terraform-infrastructure.git//terraform/modules/subnet?ref=v2.1"
+  source                  = "git::https://github.com/rare-beauty/terraform-infrastructure.git//terraform/modules/subnet?ref=v2.2"
   rgname                  = module.resourcegroup.resource_group_name
   vnetname                = module.vnet.vnet_name
   subnet_name             = var.cfg.subnet_name
@@ -40,7 +40,7 @@ module "subnet" {
 # Azure Container Registry
 #################################
 module "acr" {
-  source              = "git::https://github.com/rare-beauty/terraform-infrastructure.git//terraform/modules/acr?ref=v2.1"
+  source              = "git::https://github.com/rare-beauty/terraform-infrastructure.git//terraform/modules/acr?ref=v2.2"
   resource_group_name = module.resourcegroup.resource_group_name
   location            = module.resourcegroup.resource_group_location
   acr_name            = var.cfg.acr_name
@@ -54,7 +54,7 @@ module "acr" {
 # Azure Key Vault
 #################################
 module "keyvault" {
-  source                        = "git::https://github.com/rare-beauty/terraform-infrastructure.git//terraform/modules/azurekeyvault?ref=v2.1"
+  source                        = "git::https://github.com/rare-beauty/terraform-infrastructure.git//terraform/modules/azurekeyvault?ref=v2.2"
   rg_name                       = module.resourcegroup.resource_group_name
   location                      = module.resourcegroup.resource_group_location
   kv_name                       = var.cfg.keyvault_name
@@ -75,7 +75,7 @@ module "keyvault" {
 # AKS Cluster
 #################################
 module "aks" {
-  source       = "git::https://github.com/rare-beauty/terraform-infrastructure.git//terraform/modules/aks?ref=v2.1"
+  source       = "git::https://github.com/rare-beauty/terraform-infrastructure.git//terraform/modules/aks?ref=v2.2"
   aks_name     = var.cfg.aks
   rgname       = module.resourcegroup.resource_group_name
   aks_location = module.resourcegroup.resource_group_location
@@ -86,8 +86,9 @@ module "aks" {
   vm_size                 = var.cfg.node_vm_size
   host_encryption_enabled = true
   local_account_disabled  = false
-  oidc_issuer_enabled       = true
-  workload_identity_enabled = true
+  oidc_issuer_enabled       = var.cfg.oidc_issuer_enabled
+  workload_identity_enabled = var.cfg.workload_identity_enabled
+  
   environment             = var.cfg.environment
 
   # Networking & ACR Integration
@@ -138,7 +139,7 @@ resource "azurerm_federated_identity_credential" "wi_fic" {
 # RBAC Assignments 
 ################################
 module "rbac" {
-  source = "git::https://github.com/rare-beauty/terraform-infrastructure.git//terraform/modules/rbac?ref=v2.1"
+  source = "git::https://github.com/rare-beauty/terraform-infrastructure.git//terraform/modules/rbac?ref=v2.2"
   
   enabled = contains(["staging", "production"], var.cfg.environment)
   
