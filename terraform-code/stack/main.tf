@@ -2,7 +2,7 @@
 # Resource Group
 #################################
 module "resourcegroup" {
-  source                  = "git::https://github.com/rare-beauty/terraform-infrastructure.git//terraform/modules/resourcegroup?ref=v2.5.3"
+  source                  = "git::https://github.com/rare-beauty/terraform-infrastructure.git//terraform/modules/resourcegroup?ref=v3"
   resource_group_name     = var.cfg.resource_group_name
   resource_group_location = var.cfg.resource_group_location
   # tags                  = local.tags
@@ -12,7 +12,7 @@ module "resourcegroup" {
 # Virtual Network
 #################################
 module "vnet" {
-  source             = "git::https://github.com/rare-beauty/terraform-infrastructure.git//terraform/modules/virtualnetwork?ref=v2.5.3"
+  source             = "git::https://github.com/rare-beauty/terraform-infrastructure.git//terraform/modules/virtualnetwork?ref=v3"
   resourcegroup_name = module.resourcegroup.resource_group_name
   v_location         = module.resourcegroup.resource_group_location
   v_name             = var.cfg.v_name
@@ -24,7 +24,7 @@ module "vnet" {
 # Subnet
 #################################
 module "subnet" {
-  source                  = "git::https://github.com/rare-beauty/terraform-infrastructure.git//terraform/modules/subnet?ref=v2.5.3"
+  source                  = "git::https://github.com/rare-beauty/terraform-infrastructure.git//terraform/modules/subnet?ref=v3"
   rgname                  = module.resourcegroup.resource_group_name
   vnetname                = module.vnet.vnet_name
   subnet_name             = var.cfg.subnet_name
@@ -40,12 +40,12 @@ module "subnet" {
 # Azure Container Registry
 #################################
 module "acr" {
-  source              = "git::https://github.com/rare-beauty/terraform-infrastructure.git//terraform/modules/acr?ref=v2.5.3"
+  source              = "git::https://github.com/rare-beauty/terraform-infrastructure.git//terraform/modules/acr?ref=v3"
   resource_group_name = module.resourcegroup.resource_group_name
   location            = module.resourcegroup.resource_group_location
   acr_name            = var.cfg.acr_name
   sku                 = var.cfg.acr_sku
-  admin_enabled       = false  # âœ… secure for staging/prod
+  admin_enabled       = false  # ✓ secure for staging/prod
   # tags              = local.tags
   public_network_access_enabled = var.cfg.acr_sku == "Premium" ? false : true
 }
@@ -54,7 +54,7 @@ module "acr" {
 # Azure Key Vault
 #################################
 module "keyvault" {
-  source                        = "git::https://github.com/rare-beauty/terraform-infrastructure.git//terraform/modules/azurekeyvault?ref=v2.5.3"
+  source                        = "git::https://github.com/rare-beauty/terraform-infrastructure.git//terraform/modules/azurekeyvault?ref=v3"
   rg_name                       = module.resourcegroup.resource_group_name
   location                      = module.resourcegroup.resource_group_location
   kv_name                       = var.cfg.keyvault_name
@@ -72,7 +72,7 @@ module "keyvault" {
 }
 
 #################################
-# KV data-plane RBAC for Terraform principal  ✅ NEW
+# KV data-plane RBAC for Terraform principal  ✅
 #################################
 resource "azurerm_role_assignment" "tf_kv_secrets_officer" {
   scope                = module.keyvault.key_vault_id
@@ -84,7 +84,7 @@ resource "azurerm_role_assignment" "tf_kv_secrets_officer" {
 # Database (Postgres)
 #################################
 module "database" {
-  source = "git::https://github.com/rare-beauty/terraform-infrastructure.git//terraform/modules/database-db?ref=v2.5.3"
+  source = "git::https://github.com/rare-beauty/terraform-infrastructure.git//terraform/modules/database-db?ref=v3"
 
   # Common
   db_engine           = "postgres"                               # or "mssql" / "cosmos_mongo"
@@ -104,23 +104,28 @@ module "database" {
   pg_admin_password          = null   # auto-generate
 
   # tags = local.tags
+
+  # 🔒 Ensure RBAC is in place before we try to Get/Set the secret
+  depends_on = [
+    azurerm_role_assignment.tf_kv_secrets_officer
+  ]
 }
 
 #################################
 # AKS Cluster
 #################################
 module "aks" {
-  source       = "git::https://github.com/rare-beauty/terraform-infrastructure.git//terraform/modules/aks?ref=v2.5.3"
+  source       = "git::https://github.com/rare-beauty/terraform-infrastructure.git//terraform/modules/aks?ref=v3"
   aks_name     = var.cfg.aks
   rgname       = module.resourcegroup.resource_group_name
   aks_location = module.resourcegroup.resource_group_location
 
-  dns_prefix              = var.cfg.dns_prefix
-  private_cluster_enabled = false
-  node_count              = var.cfg.node_count
-  vm_size                 = var.cfg.node_vm_size
-  host_encryption_enabled = true
-  local_account_disabled  = false
+  dns_prefix                = var.cfg.dns_prefix
+  private_cluster_enabled   = false
+  node_count                = var.cfg.node_count
+  vm_size                   = var.cfg.node_vm_size
+  host_encryption_enabled   = true
+  local_account_disabled    = false
   oidc_issuer_enabled       = var.cfg.oidc_issuer_enabled
   workload_identity_enabled = var.cfg.workload_identity_enabled
   
@@ -130,13 +135,11 @@ module "aks" {
   vnet_subnet_id      = module.subnet.subnet_id
   acr_id              = module.acr.acr_id
   enable_azure_policy = true
-
 }
 
 #################################
 #  Look up Key Vault scope (ID)
 #################################
-
 data "azurerm_kubernetes_cluster" "aks" {
   name                = var.cfg.aks
   resource_group_name = module.resourcegroup.resource_group_name
@@ -171,19 +174,18 @@ resource "azurerm_federated_identity_credential" "wi_fic" {
 
 #################################
 # RBAC Assignments 
-################################
+#################################
 module "rbac" {
-  source = "git::https://github.com/rare-beauty/terraform-infrastructure.git//terraform/modules/rbac?ref=v2.5.3"
-  
+  source  = "git::https://github.com/rare-beauty/terraform-infrastructure.git//terraform/modules/rbac?ref=v3"
   enabled = contains(["staging", "production"], var.cfg.environment)
-  
+
   assignments = {
     wi_kv = {
       principal_id    = azurerm_user_assigned_identity.wi_app.principal_id
       role_definition = "Key Vault Secrets User"
       scope           = data.azurerm_key_vault.kv_for_wi.id
     }
-}
+  }
 }
 
 #     # AKS can pull images from ACR
@@ -193,11 +195,9 @@ module "rbac" {
 #       scope           = module.acr.acr_id
 #     }
 
- # aks can access keyvault
-    # aks_kv_secrets = {
-    #   principal_id    = module.aks.kubelet_identity
-    #   role_definition = "Key Vault Secrets User"
-    #   scope           = module.keyvault.key_vault_id
-    # }
-#   }  
-# }
+#  aks can access keyvault
+#   aks_kv_secrets = {
+#     principal_id    = module.aks.kubelet_identity
+#     role_definition = "Key Vault Secrets User"
+#     scope           = module.keyvault.key_vault_id
+#   }
