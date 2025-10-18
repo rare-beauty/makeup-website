@@ -2,7 +2,7 @@
 # Resource Group
 #################################
 module "resourcegroup" {
-  source                  = "git::https://github.com/rare-beauty/terraform-infrastructure.git//terraform/modules/resourcegroup?ref=v2.2"
+  source                  = "git::https://github.com/rare-beauty/terraform-infrastructure.git//terraform/modules/resourcegroup?ref=v2.3"
   resource_group_name     = var.cfg.resource_group_name
   resource_group_location = var.cfg.resource_group_location
   # tags                  = local.tags
@@ -12,7 +12,7 @@ module "resourcegroup" {
 # Virtual Network
 #################################
 module "vnet" {
-  source             = "git::https://github.com/rare-beauty/terraform-infrastructure.git//terraform/modules/virtualnetwork?ref=v2.2"
+  source             = "git::https://github.com/rare-beauty/terraform-infrastructure.git//terraform/modules/virtualnetwork?ref=v2.3"
   resourcegroup_name = module.resourcegroup.resource_group_name
   v_location         = module.resourcegroup.resource_group_location
   v_name             = var.cfg.v_name
@@ -24,7 +24,7 @@ module "vnet" {
 # Subnet
 #################################
 module "subnet" {
-  source                  = "git::https://github.com/rare-beauty/terraform-infrastructure.git//terraform/modules/subnet?ref=v2.2"
+  source                  = "git::https://github.com/rare-beauty/terraform-infrastructure.git//terraform/modules/subnet?ref=v2.3"
   rgname                  = module.resourcegroup.resource_group_name
   vnetname                = module.vnet.vnet_name
   subnet_name             = var.cfg.subnet_name
@@ -40,7 +40,7 @@ module "subnet" {
 # Azure Container Registry
 #################################
 module "acr" {
-  source              = "git::https://github.com/rare-beauty/terraform-infrastructure.git//terraform/modules/acr?ref=v2.2"
+  source              = "git::https://github.com/rare-beauty/terraform-infrastructure.git//terraform/modules/acr?ref=v2.3"
   resource_group_name = module.resourcegroup.resource_group_name
   location            = module.resourcegroup.resource_group_location
   acr_name            = var.cfg.acr_name
@@ -54,7 +54,7 @@ module "acr" {
 # Azure Key Vault
 #################################
 module "keyvault" {
-  source                        = "git::https://github.com/rare-beauty/terraform-infrastructure.git//terraform/modules/azurekeyvault?ref=v2.2"
+  source                        = "git::https://github.com/rare-beauty/terraform-infrastructure.git//terraform/modules/azurekeyvault?ref=v2.3"
   rg_name                       = module.resourcegroup.resource_group_name
   location                      = module.resourcegroup.resource_group_location
   kv_name                       = var.cfg.keyvault_name
@@ -72,10 +72,36 @@ module "keyvault" {
 }
 
 #################################
+# Database (Postgres)
+#################################
+module "database" {
+  source = "git::https://github.com/rare-beauty/terraform-infrastructure.git//terraform/modules/database-db?ref=v2.3"
+
+  # Common
+  db_engine           = "postgres"                               # or "mssql" / "cosmos_mongo"
+  name_prefix         = "${var.cfg.environment}-db01"
+  db_name             = "makeupapp"
+  resource_group_name = module.resourcegroup.resource_group_name
+  location            = module.resourcegroup.resource_group_location
+
+  # Key Vault (store connection string)
+  key_vault_id   = module.keyvault.key_vault_id
+  kv_secret_name = "db-connection"
+
+  # Postgres quick-start (public; remember to lock this down later)
+  pg_public_access_enabled   = true
+  pg_temp_allow_all_firewall = true
+  pg_admin_username          = "appadmin"
+  pg_admin_password          = null   # auto-generate
+
+  # tags = local.tags
+}
+
+#################################
 # AKS Cluster
 #################################
 module "aks" {
-  source       = "git::https://github.com/rare-beauty/terraform-infrastructure.git//terraform/modules/aks?ref=v2.2"
+  source       = "git::https://github.com/rare-beauty/terraform-infrastructure.git//terraform/modules/aks?ref=v2.3"
   aks_name     = var.cfg.aks
   rgname       = module.resourcegroup.resource_group_name
   aks_location = module.resourcegroup.resource_group_location
@@ -106,7 +132,6 @@ data "azurerm_kubernetes_cluster" "aks" {
   name                = var.cfg.aks
   resource_group_name = module.resourcegroup.resource_group_name
 }
-
 
 data "azurerm_key_vault" "kv_for_wi" {
   name                = module.keyvault.key_vault_name
@@ -139,7 +164,7 @@ resource "azurerm_federated_identity_credential" "wi_fic" {
 # RBAC Assignments 
 ################################
 module "rbac" {
-  source = "git::https://github.com/rare-beauty/terraform-infrastructure.git//terraform/modules/rbac?ref=v2.2"
+  source = "git::https://github.com/rare-beauty/terraform-infrastructure.git//terraform/modules/rbac?ref=v2.3"
   
   enabled = contains(["staging", "production"], var.cfg.environment)
   
@@ -167,4 +192,3 @@ module "rbac" {
     # }
 #   }  
 # }
-
