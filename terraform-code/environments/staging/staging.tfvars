@@ -11,6 +11,8 @@ cfg = {
   acr_sku  = "Basic" # cheaper than Standard
 
   keyvault_name = "staging-010"
+  public_network_access_enabled = true
+  kv_network_default_action = "Allow"
 
   aks          = "stage-aks010"
   dns_prefix   = "stageaks010"

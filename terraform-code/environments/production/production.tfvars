@@ -11,6 +11,8 @@ cfg = {
   acr_sku  = "Basic" # cheaper than Standard/Premium "free student account"
 
   keyvault_name = "prod-kv010"
+  public_network_access_enabled = false
+  kv_network_default_action = "Deny"
 
   aks          = "production-aks010"
   dns_prefix   = "productionaks010"

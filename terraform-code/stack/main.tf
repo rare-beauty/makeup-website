@@ -62,10 +62,10 @@ module "keyvault" {
   sku_name                      = "standard"
   purge_protection_enabled      = true
   soft_delete_retention_days    = 7
-  public_network_access_enabled = false
+  public_network_access_enabled = var.cfg.public_network_access_enabled
   # tags                        = local.tags
 
-  kv_network_default_action = "Deny"
+  kv_network_default_action = var.cfg.kv_network_default_action
   kv_bypass                 = "AzureServices"
   kv_ip_rules               = []   # optional: add office/CICD egress CIDRs later
   kv_vnet_subnet_ids        = []   # optional: add private endpoint subnet later
