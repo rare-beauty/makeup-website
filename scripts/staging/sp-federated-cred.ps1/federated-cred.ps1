@@ -2,12 +2,12 @@
 $Owner  = "rare-beauty"   # organisation name
 
 $Branch = "dev"                 # staging branch 
-$AppId  = "7e545c24-99fc-4ac5-8a03-a7916dde8bff"        # the appId (clientId) you already have
+$AppId  = "53b0d08d-b186-40c2-8e4d-c9a3d3619e59"        # the appId (clientId) you already have
 $Name   = "github-oidc-env-staging" # any short name
 
 # (login first if needed)
 az login 
-az account set --subscription 545d4a9b-b402-4493-a10a-99d17130d280
+az account set --subscription 4660c4f3-a83c-406e-8741-d1067921120b
 
 # Get the App Object Id from the App Id
 $AppObjectId = az ad app show --id $AppId --query id -o tsv

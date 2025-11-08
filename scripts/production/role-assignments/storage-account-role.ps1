@@ -1,7 +1,7 @@
-$SUB       = "545d4a9b-b402-4493-a10a-99d17130d280"
-$STATE_RG  = "rg-infra-staging"        # backend RG (where the storage account lives)
-$STATE_SA  = "infrastatestaging01"     # backend Storage Account
-$Prod_APP = "4fb5c823-3659-4a56-a2e3-d18987b247ae"
+$SUB       = "4660c4f3-a83c-406e-8741-d1067921120b"
+$STATE_RG  = "rg-infras-staging"        # backend RG (where the storage account lives)
+$STATE_SA  = "infrastatestaging02"     # backend Storage Account
+$Prod_APP = "ba3891bd-8a09-4e26-b09a-8d58a5661a95"
 
 # Build the scope (storage account level)
 $SA_ID = "/subscriptions/$SUB/resourceGroups/$STATE_RG/providers/Microsoft.Storage/storageAccounts/$STATE_SA"

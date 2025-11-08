@@ -1,8 +1,8 @@
 # --- fill these ---
-$SUB      = "545d4a9b-b402-4493-a10a-99d17130d280"
-$STATE_RG = "rg-infra-staging"        # backend RG (where the storage account lives)
-$STATE_SA = "infrastatestaging01"     # backend Storage Account
-$STG_APP  = "7e545c24-99fc-4ac5-8a03-a7916dde8bff"        # appId (clientId) of your staging CI SP
+$SUB      = "4660c4f3-a83c-406e-8741-d1067921120b"
+$STATE_RG = "rg-infras-staging"        # backend RG (where the storage account lives)
+$STATE_SA = "infrastatestaging02"     # backend Storage Account
+$STG_APP  = "53b0d08d-b186-40c2-8e4d-c9a3d3619e59"        # appId (clientId) of your staging CI SP
 
 az account set --subscription $SUB
 $STG_OID = az ad sp list --filter "appId eq '$STG_APP'" --query "[0].id" -o tsv

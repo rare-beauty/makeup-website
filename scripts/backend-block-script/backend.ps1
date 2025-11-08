@@ -1,9 +1,9 @@
 
-$SUB = "545d4a9b-b402-4493-a10a-99d17130d280"
+$SUB = "4660c4f3-a83c-406e-8741-d1067921120b"
 $LOC = "eastus"
-$RG  = "rg-infra-staging"
-$SA  = "infrastatestaging01"   # must be globally unique (lowercase, 3–24 chars)
-$TENANT = "6006b17c-8ebf-4b58-b64f-d3db9972a6a7"
+$RG  = "rg-infras-staging"
+$SA  = "infrastatestaging02"   # must be globally unique (lowercase, 3–24 chars)
+$TENANT = "82168e20-b2fb-4b5b-92ff-91df15b0de08"
 
 az login --tenant $TENANT | Out-Null
 
@@ -13,6 +13,8 @@ az group create -n $RG -l $LOC
 az storage account create -n $SA -g $RG -l $LOC --sku Standard_LRS --kind StorageV2 
 az storage container create --account-name $SA --name tfstate --auth-mode login 
 
+# default to "staging" unless you pass an arg like "production"
+$EnvName = if ($args.Count -gt 0) { $args[0] } else { "staging" }
 # Print backend block
 @"
 terraform {
@@ -20,7 +22,7 @@ terraform {
     resource_group_name  = "$RG"
     storage_account_name = "$SA"
     container_name       = "tfstate"
-    key                  = "infra/staging.tfstate"
+    key                  = "infra/$EnvName.tfstate"
   }
 }
 "@ | Write-Output
