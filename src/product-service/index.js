@@ -10,24 +10,26 @@ const app = express();
 app.use(cors());
 app.use(bodyParser.json());
 
-// Serve uploaded images
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
-
-// Ensure uploads directory exists
+// ---- static files for uploaded images ----
 const uploadDir = path.join(__dirname, "uploads");
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir);
-}
+if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
+app.use("/uploads", express.static(uploadDir));
 
-// Multer config
+// ---- multer setup ----
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, uploadDir),
   filename: (req, file, cb) => {
     const ext = path.extname(file.originalname);
-    cb(null, `${Date.now()}-${Math.random().toString(36).substr(2, 9)}${ext}`);
+    cb(null, `${Date.now()}-${Math.random().toString(36).slice(2, 11)}${ext}`);
   },
 });
 const upload = multer({ storage });
+
+// ---- health endpoints (must return 200 fast) ----
+app.get("/healthz", (_req, res) => res.status(200).send("ok"));
+app.get("/", (_req, res) => res.status(200).send("ok"));
+
+// ---- routes ----
 
 // POST /products - create product
 app.post("/products", upload.single("image"), async (req, res) => {
@@ -42,10 +44,10 @@ app.post("/products", upload.single("image"), async (req, res) => {
       sku,
       name,
       price,
-      categories: categories?.split(",").map(c => c.trim()) || [],
+      categories: categories?.split(",").map((c) => c.trim()) || [],
       instock,
       description,
-      imageUrl, // ✅ always include this
+      imageUrl,
     });
 
     await product.save();
@@ -57,9 +59,8 @@ app.post("/products", upload.single("image"), async (req, res) => {
   }
 });
 
-
 // GET /products - fetch all
-app.get("/products", async (req, res) => {
+app.get("/products", async (_req, res) => {
   try {
     const products = await Product.find();
     res.json(products);
@@ -77,10 +78,8 @@ app.delete("/products/:id", async (req, res) => {
 
     if (product.imageUrl) {
       const filename = path.basename(product.imageUrl);
-      const imagePath = path.join(__dirname, "uploads", filename);
-      if (fs.existsSync(imagePath)) {
-        fs.unlinkSync(imagePath);
-      }
+      const imagePath = path.join(uploadDir, filename);
+      if (fs.existsSync(imagePath)) fs.unlinkSync(imagePath);
     }
 
     await Product.findByIdAndDelete(req.params.id);
@@ -91,5 +90,8 @@ app.delete("/products/:id", async (req, res) => {
   }
 });
 
-const PORT = 4003;
-app.listen(PORT, () => console.log(`🚀 Product Service running on port ${PORT}`));
+// ---- start server on env PORT (default 80) ----
+const PORT = Number(process.env.PORT) || 80;
+app.listen(PORT, () => {
+  console.log(`🚀 Product Service listening on port ${PORT}`);
+});

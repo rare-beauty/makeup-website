@@ -1,6 +1,6 @@
 # --- inputs  ---
-$SUB       = "545d4a9b-b402-4493-a10a-99d17130d280"   # <-- ensure this is the PROD subscription
-$Prod_APP  = "4fb5c823-3659-4a56-a2e3-d18987b247ae"   # PROD CI SP (clientId)
+$SUB       = "4660c4f3-a83c-406e-8741-d1067921120b"   # <-- ensure this is the PROD subscription
+$Prod_APP  = "ba3891bd-8a09-4e26-b09a-8d58a5661a95"   # PROD CI SP (clientId)
 
 # Set context
 az account set --subscription $SUB

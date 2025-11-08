@@ -8,8 +8,8 @@ terraform {
   }
 
   backend "azurerm" {
-    resource_group_name  = "rg-infra-staging"
-    storage_account_name = "infrastatestaging01"
+    resource_group_name  = "rg-infras-staging"
+    storage_account_name = "infrastatestaging02"
     container_name       = "tfstate"
     use_azuread_auth     = true
     key                  = "infra/staging.tfstate"
