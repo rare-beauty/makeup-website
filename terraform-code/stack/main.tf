@@ -45,7 +45,7 @@ module "acr" {
   location            = module.resourcegroup.resource_group_location
   acr_name            = var.cfg.acr_name
   sku                 = var.cfg.acr_sku
-  admin_enabled       = false  # ✓ secure for staging/prod
+  admin_enabled       = false  # secure for staging/prod
   # tags              = local.tags
   public_network_access_enabled = var.cfg.acr_sku == "Premium" ? false : true
 }
