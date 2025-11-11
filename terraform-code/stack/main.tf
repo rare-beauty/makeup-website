@@ -150,6 +150,7 @@ module "aks" {
 #   resource_group_name = module.resourcegroup.resource_group_name
 # }
 
+###############################
 #  UAMI for Workload Identity (per env)
 #################################
 resource "azurerm_user_assigned_identity" "wi_app" {
