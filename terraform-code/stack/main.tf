@@ -140,15 +140,15 @@ module "aks" {
 #################################
 #  Look up Key Vault scope (ID)
 #################################
-data "azurerm_kubernetes_cluster" "aks" {
-  name                = var.cfg.aks
-  resource_group_name = module.resourcegroup.resource_group_name
-}
+# data "azurerm_kubernetes_cluster" "aks" {
+#   name                = var.cfg.aks
+#   resource_group_name = module.resourcegroup.resource_group_name
+# }
 
-data "azurerm_key_vault" "kv_for_wi" {
-  name                = module.keyvault.key_vault_name
-  resource_group_name = module.resourcegroup.resource_group_name
-}
+# data "azurerm_key_vault" "kv_for_wi" {
+#   name                = module.keyvault.key_vault_name
+#   resource_group_name = module.resourcegroup.resource_group_name
+# }
 
 #  UAMI for Workload Identity (per env)
 #################################
@@ -167,9 +167,11 @@ resource "azurerm_federated_identity_credential" "wi_fic" {
 
   # REQUIRED join fields:
   parent_id = azurerm_user_assigned_identity.wi_app.id
-  issuer    = data.azurerm_kubernetes_cluster.aks.oidc_issuer_url
+  issuer    = module.aks.oidc_issuer_url
   subject   = "system:serviceaccount:${var.cfg.k8s_namespace}:${var.cfg.serviceaccount_name}"
   audience  = ["api://AzureADTokenExchange"]
+
+  depends_on = [ module.aks ]
 }
 
 #################################
@@ -183,17 +185,21 @@ module "rbac" {
     wi_kv = {
       principal_id    = azurerm_user_assigned_identity.wi_app.principal_id
       role_definition = "Key Vault Secrets User"
-      scope           = data.azurerm_key_vault.kv_for_wi.id
+      scope           = module.keyvault.key_vault_id
+      #scope           = data.azurerm_key_vault.kv_for_wi.id
     }
+
+     # AKS can pull images from ACR
+     aks_acr_pull = {
+       principal_id    = module.aks.kubelet_identity
+       role_definition = "AcrPull"
+       scope           = module.acr.acr_id
+     }
+
   }
 }
 
-#     # AKS can pull images from ACR
-#     aks_acr_pull = {
-#       principal_id    = module.aks.kubelet_identity
-#       role_definition = "AcrPull"
-#       scope           = module.acr.acr_id
-#     }
+#    
 
 #  aks can access keyvault
 #   aks_kv_secrets = {
