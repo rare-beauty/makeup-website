@@ -72,7 +72,7 @@ module "keyvault" {
 }
 
 #################################
-# KV data-plane RBAC for Terraform principal  ✅
+# KV data-plane RBAC for Terraform principal
 #################################
 resource "azurerm_role_assignment" "tf_kv_secrets_officer" {
   scope                = module.keyvault.key_vault_id
