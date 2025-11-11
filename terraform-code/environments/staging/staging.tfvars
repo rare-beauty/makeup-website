@@ -10,7 +10,7 @@ cfg = {
   acr_name = "stagingacr02"
   acr_sku  = "Basic" # cheaper than Standard
 
-  keyvault_name = "staging-02"
+  keyvault_name = "staging-kv02"
   public_network_access_enabled = true
   kv_network_default_action = "Allow"
 
