@@ -1,8 +1,8 @@
 # --- inputs ---
-$SUB      = "545d4a9b-b402-4493-a10a-99d17130d280"
-$RG       = "staging-rgroup010"
-$AKS_NAME = "stage-aks010"
-$ACR_NAME = "stagingacr010"
+$SUB      = "4660c4f3-a83c-406e-8741-d1067921120b"
+$RG       = "staging-rgroup02"
+$AKS_NAME = "stage-aks02"
+$ACR_NAME = "stagingacr02"
 
 az account set --subscription $SUB
 
