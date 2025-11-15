@@ -6,7 +6,7 @@ on:
 
 permissions:
   id-token: write
-  contents: write   # allow committing tag updates back to repo
+  contents: write   # needed to commit to GitOps repo if it’s under same org
 
 jobs:
   # ===================== STAGING (dev branch) =====================
@@ -16,8 +16,8 @@ jobs:
     environment: staging
     env:
       IMAGE_NAME: myapp
-     # FILE_STG: staging.yaml          # <-- set to your staging values file path
-      FILE_STG: |
+      # explicit list of all staging values files in the GitOps repo
+      STAGING_FILES: |
         helm-charts/app/values/contact-blog-services/staging.yaml
         helm-charts/app/values/frontend/staging.yaml
         helm-charts/app/values/product-service/staging.yaml
@@ -26,9 +26,18 @@ jobs:
         helm-charts/app/values/user-service/staging.yaml
 
     steps:
+      # 1) Checkout APP repo (this repo)
       - uses: actions/checkout@v3
 
-      # Login to Azure with OIDC
+      # 2) Checkout GITOPS repo (where Helm values live)
+      - name: Checkout GitOps repo
+        uses: actions/checkout@v4
+        with:
+          repository: rare-beauty/makeup-gitops      # <-- change if repo name different
+          token: ${{ secrets.GITOPS_TOKEN }}         # PAT with repo read/write
+          path: gitops                               # clone into ./gitops
+
+      # 3) Login to Azure with OIDC
       - name: Azure Login via OIDC
         uses: azure/login@v2
         with:
@@ -36,7 +45,7 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      # Resolve ACR
+      # 4) Resolve ACR
       - name: Resolve ACR (staging)
         id: acr
         shell: bash
@@ -51,7 +60,7 @@ jobs:
           echo "acr_name=$NAME"  >> "$GITHUB_OUTPUT"
           echo "acr_login=$REG"  >> "$GITHUB_OUTPUT"
 
-      # Compute immutable release tag
+      # 5) Compute immutable release tag (short SHA)
       - name: Compute release tag
         id: ver
         shell: bash
@@ -60,7 +69,7 @@ jobs:
           TAG="${GITHUB_SHA::7}"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
-      # Install yq for YAML edits
+      # 6) Install yq (for editing YAML in GitOps repo)
       - name: Install yq
         shell: bash
         run: |
@@ -68,21 +77,21 @@ jobs:
           curl -sL https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 \
             -o yq && chmod +x yq && sudo mv yq /usr/local/bin/yq
 
-      # Lint Dockerfiles
+      # 7) Lint Dockerfiles
       - name: Hadolint (Dockerfiles)
         if: ${{ hashFiles('**/Dockerfile') != '' }}
         uses: hadolint/hadolint-action@v3.1.0
         with:
           recursive: true
 
-      # Node toolchain (only if needed)
+      # 8) Node toolchain (only if needed)
       - name: Use Node
         if: ${{ hashFiles('src/**/package.json') != '' }}
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
-      # Install deps + lint per service (if present)
+      # 9) Install deps + lint per service
       - name: Install deps + lint per service
         if: ${{ hashFiles('src/**/package.json') != '' }}
         shell: bash
@@ -90,10 +99,10 @@ jobs:
           set -e
           for svcdir in src/*; do
             if [ -f "$svcdir/package.json" ]; then
-              echo "Installing in $svcdir"
+              echo "📦 Installing in $svcdir"
               cd "$svcdir"
               if [ -f package-lock.json ] || [ -f npm-shrinkwrap.json ]; then
-                npm ci || (echo "npm ci failed → npm install fallback" && npm install --no-audit --no-fund)
+                npm ci || (echo "⚠️ npm ci failed → npm install fallback" && npm install --no-audit --no-fund)
               else
                 npm install --no-audit --no-fund
               fi
@@ -103,11 +112,11 @@ jobs:
             fi
           done
 
-      # Login to ACR
+      # 10) Login to ACR
       - name: ACR Docker login
         run: az acr login --name ${{ steps.acr.outputs.acr_name }}
 
-      # Build & push all service images
+      # 11) Build & push images (tag with env + immutable tag)
       - name: Build & push images (staging)
         shell: bash
         run: |
@@ -118,7 +127,7 @@ jobs:
           for svcdir in src/*; do
             if [ -f "$svcdir/Dockerfile" ]; then
               svc="$(basename "$svcdir")"
-              echo "Building $svc (staging)"
+              echo "🐳 Building $svc (staging)"
               docker build \
                 -t "${{ steps.acr.outputs.acr_login }}/$svc:staging" \
                 -t "${{ steps.acr.outputs.acr_login }}/$svc:${RELTAG}" \
@@ -134,23 +143,45 @@ jobs:
             echo "::warning ::No Dockerfile found under src/* – nothing to build."
           fi
 
-      # Update staging values with new immutable tag (GitOps)
-      - name: Update staging values with new image tag (GitOps)
+      # 12) Update ALL staging values in GitOps repo with new tag
+      - name: Update ALL staging values with new image tag (GitOps)
         shell: bash
+        env:
+          NEW_TAG: ${{ steps.ver.outputs.tag }}
         run: |
           set -e
-          FILE="${FILE_STG}"
-          NEW_TAG="${{ steps.ver.outputs.tag }}"
-          if [ ! -f "$FILE" ]; then
-            echo "::error ::Values file '$FILE' not found. Set FILE_STG env to the correct path."
+          echo "🔁 Updating staging tags in GitOps repo"
+          cd gitops   # go into GitOps repo
+
+          changed=0
+
+          echo "These staging files will be processed:"
+          printf '%s\n' "${STAGING_FILES}"
+
+          while IFS= read -r FILE; do
+            [ -z "$FILE" ] && continue
+
+            if [ ! -f "$FILE" ]; then
+              echo "⚠️ File not found: $FILE"
+              continue
+            fi
+
+            echo "🔧 $FILE → image.tag=${NEW_TAG}"
+            yq -i '.image.tag = strenv(NEW_TAG)' "$FILE"
+            git add "$FILE"
+            changed=1
+          done <<< "$STAGING_FILES"
+
+          if [ "$changed" -eq 1 ]; then
+            git config user.name  "ci-bot"
+            git config user.email "ci-bot@users.noreply.github.com"
+            git commit -m "staging: deploy image ${NEW_TAG}"
+            git push
+          else
+            echo "::error ::No staging files were updated. Check STAGING_FILES paths."
             exit 1
           fi
-          yq -i '.image.tag = strenv(NEW_TAG)' "$FILE"
-          git config user.name  "ci-bot"
-          git config user.email "ci-bot@users.noreply.github.com"
-          git add "$FILE"
-          git commit -m "staging: deploy image ${NEW_TAG}"
-          git push
+
 
   # ===================== PRODUCTION (main branch) =====================
   production:
@@ -159,10 +190,23 @@ jobs:
     environment: production
     env:
       IMAGE_NAME: myapp
-      FILE_PROD: production.yaml      # <-- set to your production values file path
+      PRODUCTION_FILES: |
+        helm-charts/app/values/contact-blog-services/production.yaml
+        helm-charts/app/values/frontend/production.yaml
+        helm-charts/app/values/product-service/production.yaml
+        helm-charts/app/values/order-service/production.yaml
+        helm-charts/app/values/review-service/production.yaml
+        helm-charts/app/values/user-service/production.yaml
 
     steps:
       - uses: actions/checkout@v3
+
+      - name: Checkout GitOps repo
+        uses: actions/checkout@v4
+        with:
+          repository: rare-beauty/makeup-gitops
+          token: ${{ secrets.GITOPS_TOKEN }}
+          path: gitops
 
       - name: Azure Login via OIDC
         uses: azure/login@v2
@@ -191,7 +235,6 @@ jobs:
           echo "acr_name=$NAME"   >> "$GITHUB_OUTPUT"
           echo "acr_login=$REG"   >> "$GITHUB_OUTPUT"
 
-      # Compute release tag
       - name: Compute release tag
         if: ${{ steps.acr.outputs.skip_build != 'true' }}
         id: ver
@@ -201,7 +244,6 @@ jobs:
           TAG="${GITHUB_SHA::7}"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
-      # Install yq
       - name: Install yq
         if: ${{ steps.acr.outputs.skip_build != 'true' }}
         shell: bash
@@ -273,22 +315,41 @@ jobs:
             echo "::warning ::No Dockerfile found under src/* – nothing to build."
           fi
 
-      # Update production values with new immutable tag (GitOps)
-      - name: Update production values with new image tag (GitOps)
+      - name: Update ALL production values with new image tag (GitOps)
         if: ${{ steps.acr.outputs.skip_build != 'true' }}
         shell: bash
+        env:
+          NEW_TAG: ${{ steps.ver.outputs.tag }}
         run: |
           set -e
-          FILE="${FILE_PROD}"
-          NEW_TAG="${{ steps.ver.outputs.tag }}"
-          if [ ! -f "$FILE" ]; then
-            echo "::warning ::Values file '$FILE' not found. Set FILE_PROD env to the correct path."
-            exit 0
+          echo "🔁 Updating production tags in GitOps repo"
+          cd gitops
+
+          changed=0
+
+          echo "These production files will be processed:"
+          printf '%s\n' "${PRODUCTION_FILES}"
+
+          while IFS= read -r FILE; do
+            [ -z "$FILE" ] && continue
+
+            if [ ! -f "$FILE" ]; then
+              echo "⚠️ File not found: $FILE"
+              continue
+            fi
+
+            echo "🔧 $FILE → image.tag=${NEW_TAG}"
+            yq -i '.image.tag = strenv(NEW_TAG)' "$FILE"
+            git add "$FILE"
+            changed=1
+          done <<< "$PRODUCTION_FILES"
+
+          if [ "$changed" -eq 1 ]; then
+            git config user.name  "ci-bot"
+            git config user.email "ci-bot@users.noreply.github.com"
+            git commit -m "production: deploy image ${NEW_TAG}"
+            git push
+          else
+            echo "::warning ::No production files were updated."
           fi
-          yq -i '.image.tag = strenv(NEW_TAG)' "$FILE"
-          git config user.name  "ci-bot"
-          git config user.email "ci-bot@users.noreply.github.com"
-          git add "$FILE"
-          git commit -m "production: deploy image ${NEW_TAG}"
-          git push
 
