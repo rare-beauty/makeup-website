@@ -6,35 +6,36 @@ on:
 
 permissions:
   id-token: write
-  contents: read
+  contents: write   # allow committing tag updates back to repo
 
 jobs:
   # ===================== STAGING (dev branch) =====================
   staging:
     if: ${{ github.ref == 'refs/heads/dev' }}
     runs-on: ubuntu-latest
-    environment: staging               # uses env-scoped secrets
+    environment: staging
     env:
       IMAGE_NAME: myapp
+      FILE_STG: staging.yaml          # <-- set to your staging values file path
 
     steps:
       - uses: actions/checkout@v3
 
-      # 1) OIDC login (uses env secret AZURE_CLIENT_ID + repo secrets for tenant/sub)
+      # Login to Azure with OIDC
       - name: Azure Login via OIDC
         uses: azure/login@v2
         with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}             # env secret (staging)
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}             # repo secret (shared)
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }} # repo secret (shared)
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      # 2) Resolve ACR (env secret ACR_NAME → login server)
+      # Resolve ACR
       - name: Resolve ACR (staging)
         id: acr
         shell: bash
         run: |
           set -e
-          NAME="${{ secrets.ACR_NAME }}"     # env secret (staging)
+          NAME="${{ secrets.ACR_NAME }}"
           if [ -z "$NAME" ]; then
             echo "::error ::Environment secret ACR_NAME is missing in 'staging'."
             exit 1
@@ -43,21 +44,38 @@ jobs:
           echo "acr_name=$NAME"  >> "$GITHUB_OUTPUT"
           echo "acr_login=$REG"  >> "$GITHUB_OUTPUT"
 
-      # 3) Lint Dockerfiles if any exist
+      # Compute immutable release tag
+      - name: Compute release tag
+        id: ver
+        shell: bash
+        run: |
+          set -e
+          TAG="${GITHUB_SHA::7}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      # Install yq for YAML edits
+      - name: Install yq
+        shell: bash
+        run: |
+          set -e
+          curl -sL https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 \
+            -o yq && chmod +x yq && sudo mv yq /usr/local/bin/yq
+
+      # Lint Dockerfiles
       - name: Hadolint (Dockerfiles)
         if: ${{ hashFiles('**/Dockerfile') != '' }}
         uses: hadolint/hadolint-action@v3.1.0
         with:
           recursive: true
 
-      # 4) Node toolchain only if any service has package.json
+      # Node toolchain (only if needed)
       - name: Use Node
         if: ${{ hashFiles('src/**/package.json') != '' }}
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
-      # 5) Per-service install/lint (only in folders that have package.json)
+      # Install deps + lint per service (if present)
       - name: Install deps + lint per service
         if: ${{ hashFiles('src/**/package.json') != '' }}
         shell: bash
@@ -65,10 +83,10 @@ jobs:
           set -e
           for svcdir in src/*; do
             if [ -f "$svcdir/package.json" ]; then
-              echo "📦 Installing in $svcdir"
+              echo "Installing in $svcdir"
               cd "$svcdir"
               if [ -f package-lock.json ] || [ -f npm-shrinkwrap.json ]; then
-                npm ci || (echo "⚠️ npm ci failed → npm install fallback" && npm install --no-audit --no-fund)
+                npm ci || (echo "npm ci failed → npm install fallback" && npm install --no-audit --no-fund)
               else
                 npm install --no-audit --no-fund
               fi
@@ -78,25 +96,29 @@ jobs:
             fi
           done
 
-      # 6) ACR docker login + build/push per service Dockerfile
+      # Login to ACR
       - name: ACR Docker login
         run: az acr login --name ${{ steps.acr.outputs.acr_name }}
 
+      # Build & push all service images
       - name: Build & push images (staging)
         shell: bash
         run: |
           set -e
-          VERSION="${GITHUB_SHA::7}"   # minimal version tag
+          VERSION="${GITHUB_SHA::7}"
+          RELTAG="${{ steps.ver.outputs.tag }}"
           built_any=0
           for svcdir in src/*; do
             if [ -f "$svcdir/Dockerfile" ]; then
               svc="$(basename "$svcdir")"
-              echo "🐳 Building $svc (staging)"
+              echo "Building $svc (staging)"
               docker build \
                 -t "${{ steps.acr.outputs.acr_login }}/$svc:staging" \
+                -t "${{ steps.acr.outputs.acr_login }}/$svc:${RELTAG}" \
                 -t "${{ steps.acr.outputs.acr_login }}/$svc:${VERSION}" \
                 "$svcdir"
               docker push "${{ steps.acr.outputs.acr_login }}/$svc:staging"
+              docker push "${{ steps.acr.outputs.acr_login }}/$svc:${RELTAG}"
               docker push "${{ steps.acr.outputs.acr_login }}/$svc:${VERSION}"
               built_any=1
             fi
@@ -105,6 +127,24 @@ jobs:
             echo "::warning ::No Dockerfile found under src/* – nothing to build."
           fi
 
+      # Update staging values with new immutable tag (GitOps)
+      - name: Update staging values with new image tag (GitOps)
+        shell: bash
+        run: |
+          set -e
+          FILE="${FILE_STG}"
+          NEW_TAG="${{ steps.ver.outputs.tag }}"
+          if [ ! -f "$FILE" ]; then
+            echo "::error ::Values file '$FILE' not found. Set FILE_STG env to the correct path."
+            exit 1
+          fi
+          yq -i '.image.tag = strenv(NEW_TAG)' "$FILE"
+          git config user.name  "ci-bot"
+          git config user.email "ci-bot@users.noreply.github.com"
+          git add "$FILE"
+          git commit -m "staging: deploy image ${NEW_TAG}"
+          git push
+
   # ===================== PRODUCTION (main branch) =====================
   production:
     if: ${{ github.ref == 'refs/heads/main' }}
@@ -112,6 +152,7 @@ jobs:
     environment: production
     env:
       IMAGE_NAME: myapp
+      FILE_PROD: production.yaml      # <-- set to your production values file path
 
     steps:
       - uses: actions/checkout@v3
@@ -119,16 +160,16 @@ jobs:
       - name: Azure Login via OIDC
         uses: azure/login@v2
         with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}               # env secret (production)
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}               # repo secret
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}   # repo secret
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Resolve ACR (production)
         id: acr
         shell: bash
         run: |
           set -e
-          NAME="${{ secrets.ACR_NAME }}"   # env secret (production)
+          NAME="${{ secrets.ACR_NAME }}"
           if [ -z "$NAME" ]; then
             echo "::warning ::ACR_NAME env secret is missing in 'production'. Skipping build."
             echo "skip_build=true" >> "$GITHUB_OUTPUT"
@@ -142,6 +183,25 @@ jobs:
           echo "skip_build=false" >> "$GITHUB_OUTPUT"
           echo "acr_name=$NAME"   >> "$GITHUB_OUTPUT"
           echo "acr_login=$REG"   >> "$GITHUB_OUTPUT"
+
+      # Compute release tag
+      - name: Compute release tag
+        if: ${{ steps.acr.outputs.skip_build != 'true' }}
+        id: ver
+        shell: bash
+        run: |
+          set -e
+          TAG="${GITHUB_SHA::7}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      # Install yq
+      - name: Install yq
+        if: ${{ steps.acr.outputs.skip_build != 'true' }}
+        shell: bash
+        run: |
+          set -e
+          curl -sL https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 \
+            -o yq && chmod +x yq && sudo mv yq /usr/local/bin/yq
 
       - name: Hadolint (Dockerfiles)
         if: ${{ steps.acr.outputs.skip_build != 'true' && hashFiles('**/Dockerfile') != '' }}
@@ -184,7 +244,8 @@ jobs:
         shell: bash
         run: |
           set -e
-          VERSION="${GITHUB_SHA::7}"   # minimal version tag
+          VERSION="${GITHUB_SHA::7}"
+          RELTAG="${{ steps.ver.outputs.tag }}"
           built_any=0
           for svcdir in src/*; do
             if [ -f "$svcdir/Dockerfile" ]; then
@@ -192,9 +253,11 @@ jobs:
               echo "🐳 Building $svc (production)"
               docker build \
                 -t "${{ steps.acr.outputs.acr_login }}/$svc:production" \
+                -t "${{ steps.acr.outputs.acr_login }}/$svc:${RELTAG}" \
                 -t "${{ steps.acr.outputs.acr_login }}/$svc:${VERSION}" \
                 "$svcdir"
               docker push "${{ steps.acr.outputs.acr_login }}/$svc:production"
+              docker push "${{ steps.acr.outputs.acr_login }}/$svc:${RELTAG}"
               docker push "${{ steps.acr.outputs.acr_login }}/$svc:${VERSION}"
               built_any=1
             fi
@@ -202,3 +265,23 @@ jobs:
           if [ "$built_any" -eq 0 ]; then
             echo "::warning ::No Dockerfile found under src/* – nothing to build."
           fi
+
+      # Update production values with new immutable tag (GitOps)
+      - name: Update production values with new image tag (GitOps)
+        if: ${{ steps.acr.outputs.skip_build != 'true' }}
+        shell: bash
+        run: |
+          set -e
+          FILE="${FILE_PROD}"
+          NEW_TAG="${{ steps.ver.outputs.tag }}"
+          if [ ! -f "$FILE" ]; then
+            echo "::warning ::Values file '$FILE' not found. Set FILE_PROD env to the correct path."
+            exit 0
+          fi
+          yq -i '.image.tag = strenv(NEW_TAG)' "$FILE"
+          git config user.name  "ci-bot"
+          git config user.email "ci-bot@users.noreply.github.com"
+          git add "$FILE"
+          git commit -m "production: deploy image ${NEW_TAG}"
+          git push
+
