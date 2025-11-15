@@ -16,7 +16,14 @@ jobs:
     environment: staging
     env:
       IMAGE_NAME: myapp
-      FILE_STG: staging.yaml          # <-- set to your staging values file path
+     # FILE_STG: staging.yaml          # <-- set to your staging values file path
+      FILE_STG: |
+        helm-charts/app/values/contact-blog-services/staging.yaml
+        helm-charts/app/values/frontend/staging.yaml
+        helm-charts/app/values/product-service/staging.yaml
+        helm-charts/app/values/order-service/staging.yaml
+        helm-charts/app/values/review-service/staging.yaml
+        helm-charts/app/values/user-service/staging.yaml
 
     steps:
       - uses: actions/checkout@v3
