@@ -45,7 +45,7 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      # 4) Resolve ACR
+      # 4) Resolve ACR -
       - name: Resolve ACR (staging)
         id: acr
         shell: bash
