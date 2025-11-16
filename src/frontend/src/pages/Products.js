@@ -17,7 +17,7 @@ const Products = () => {
 
   useEffect(() => {
     axios
-      .get("http://localhost:4003/products")
+      .get("/api/products")
       .then((res) => setProducts(res.data))
       .catch((err) => console.error("❌ Fetch error:", err));
   }, []);
