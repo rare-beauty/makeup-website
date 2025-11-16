@@ -55,5 +55,14 @@ output "aks_kubelet_identity" {
 }
 
 
+#### DATABASE MONGO ######
 
+output "mongo_kv_secret_name" {
+  value       = "mongo-connection"
+  description = "Key Vault secret name where Mongo connection string is stored"
+}
 
+output "postgres_kv_secret_name" {
+  value       = "postgres-connection"
+  description = "Key Vault secret name where Postgres connection string is stored"
+}

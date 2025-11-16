@@ -112,6 +112,32 @@ module "database" {
 }
 
 #################################
+# Database (Cosmos Mongo for a Mongo-based microservice)
+#################################
+module "mongo_database" {
+  source = "git::https://github.com/rare-beauty/terraform-infrastructure.git//terraform/modules/database-db?ref=v3"
+
+  # Common
+  db_engine           = "cosmos_mongo"                          # <--- IMPORTANT
+  name_prefix         = "${var.cfg.environment}-mongo01"        # e.g. "staging-mongo01"
+  db_name             = "products"                              # logical DB name inside Mongo
+  resource_group_name = module.resourcegroup.resource_group_name
+  location            = module.resourcegroup.resource_group_location
+
+  # Key Vault (store Mongo connection string)
+  key_vault_id   = module.keyvault.key_vault_id
+  kv_secret_name = "mongo-connection"                           # secret name in KV (e.g. used by product-service)
+
+  # If the module has extra cosmos-specific inputs, you can set them here.
+  # Otherwise it will use sensible defaults for cosmos_mongo.
+
+  depends_on = [
+    azurerm_role_assignment.tf_kv_secrets_officer
+  ]
+}
+
+
+#################################
 # AKS Cluster
 #################################
 module "aks" {
