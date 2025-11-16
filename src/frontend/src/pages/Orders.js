@@ -21,7 +21,7 @@ const Orders = () => {
 
   const fetchOrders = async () => {
     try {
-      const res = await axios.get("http://localhost:4004/orders");
+      const res = await axios.get("/api/orders");
       setOrders(res.data);
     } catch (err) {
       console.error("Error fetching orders", err);
@@ -45,7 +45,7 @@ const Orders = () => {
   const handleDelete = async (orderId) => {
     if (!window.confirm("Are you sure you want to delete this order?")) return;
     try {
-      await axios.delete(`http://localhost:4004/orders/${orderId}`);
+      await axios.delete(`/api/orders/${orderId}`);
       alert("Order deleted");
       setOrders((prev) => prev.filter((o) => o._id !== orderId));
     } catch (err) {
@@ -55,7 +55,7 @@ const Orders = () => {
 
   const handleStatusChange = async (orderId, newStatus) => {
     try {
-      await axios.patch(`http://localhost:4004/orders/${orderId}`, {
+      await axios.patch(`/api/orders/${orderId}`, {
         status: newStatus,
       });
       fetchOrders();
@@ -101,7 +101,7 @@ const Orders = () => {
         <div key={i} style={styles.card}>
           {o.productImageUrl && (
             <img
-              src={`http://localhost:4003${o.productImageUrl}`}
+              src={`/api/orders${o.productImageUrl}`}
               alt={o.productName}
               style={styles.image}
             />

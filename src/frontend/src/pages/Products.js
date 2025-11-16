@@ -62,7 +62,7 @@ const Products = () => {
     }
 
     try {
-      const res = await axios.post("http://localhost:4003/products", data);
+      const res = await axios.post("/api/products", data);
       if (res.status === 201) {
         alert("✅ Product uploaded!");
         window.location.reload();
@@ -76,7 +76,7 @@ const Products = () => {
 
   const handleAddToCart = async (product) => {
     try {
-      await axios.post("http://localhost:4004/orders", {
+      await axios.post("/api/orders", {
         productId: product._id,
         name: product.name,
         price: product.price,
@@ -92,7 +92,7 @@ const Products = () => {
   const handleDelete = async (productId) => {
     if (!window.confirm("Are you sure you want to delete this product?")) return;
     try {
-      await axios.delete(`http://localhost:4003/products/${productId}`);
+      await axios.delete(`/api/products/${productId}`);
       alert("🗑️ Product deleted");
       setProducts((prev) => prev.filter((p) => p._id !== productId));
     } catch (err) {
@@ -136,7 +136,7 @@ const Products = () => {
             <h3>{p.name}</h3>
             {p.imageUrl ? (
               <img
-                src={`http://localhost:4003${p.imageUrl}`}
+                src={`/api/products${p.imageUrl}`}
                 alt={p.name}
                 style={{
                   width: "100%",

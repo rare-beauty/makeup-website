@@ -11,7 +11,7 @@ const Contact = () => {
   const handleSubmit = (e) => {
     e.preventDefault();
     axios
-      .post("http://localhost:4001/contact", form)
+      .post("/api/contact", form)
       .then(() => {
         alert("💌 Message sent!");
         setForm({ name: "", email: "", message: "" });

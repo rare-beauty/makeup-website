@@ -8,7 +8,7 @@ const DealsSlider = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    fetch("http://localhost:4003/products")
+    fetch("/api/products")
       .then((res) => res.json())
       .then((data) => {
         // ✅ Show only products that have images
@@ -41,7 +41,7 @@ const DealsSlider = () => {
             <img
               src={
                 deal.imageUrl
-                  ? `http://localhost:4003${deal.imageUrl}`
+                  ? `/api/products${deal.imageUrl}`
                   : "/assets/default-placeholder.png"
               }
               alt={deal.name}

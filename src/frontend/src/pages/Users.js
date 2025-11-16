@@ -7,7 +7,7 @@ const Users = () => {
 
   useEffect(() => {
     axios
-      .get("http://localhost:4001/contact")
+      .get("/api/contact")
       .then((res) => setContacts(res.data))
       .catch((err) => console.error("Error fetching contacts", err));
   }, []);
