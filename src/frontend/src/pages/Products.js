@@ -14,6 +14,7 @@ const Products = () => {
   });
   const [preview, setPreview] = useState(null);
   const dropRef = useRef(null);
+  const fileInputRef = useRef(null);   // 👉 to reset file input
 
   // ---- FETCH PRODUCTS ----
   const fetchProducts = async () => {
@@ -67,8 +68,24 @@ const Products = () => {
       const res = await axios.post("/api/products", data);
       if (res.status === 201) {
         alert("Product uploaded!");
-        // 🔁 instead of full page reload, just refresh products in state
+
+        // 🔁 refresh list
         await fetchProducts();
+
+        // 🧼 reset form fields + image + file input
+        setForm({
+          sku: "",
+          name: "",
+          price: "",
+          description: "",
+          categories: "",
+          instock: "",
+          image: null,
+        });
+        setPreview(null);
+        if (fileInputRef.current) {
+          fileInputRef.current.value = "";
+        }
       }
     } catch (err) {
       console.error("❌ Upload failed:", err);
@@ -91,12 +108,47 @@ const Products = () => {
       <h2>Add Product</h2>
 
       <form onSubmit={handleSubmit} style={formStyle}>
-        <input name="sku" placeholder="SKU" onChange={handleChange} required />
-        <input name="name" placeholder="Name" onChange={handleChange} required />
-        <input name="price" placeholder="Price" onChange={handleChange} required />
-        <input name="description" placeholder="Description" onChange={handleChange} required />
-        <input name="categories" placeholder="Categories (comma-separated)" onChange={handleChange} />
-        <input name="instock" placeholder="Stock" onChange={handleChange} required />
+        <input
+          name="sku"
+          placeholder="SKU"
+          value={form.sku}
+          onChange={handleChange}
+          required
+        />
+        <input
+          name="name"
+          placeholder="Name"
+          value={form.name}
+          onChange={handleChange}
+          required
+        />
+        <input
+          name="price"
+          placeholder="Price"
+          value={form.price}
+          onChange={handleChange}
+          required
+        />
+        <input
+          name="description"
+          placeholder="Description"
+          value={form.description}
+          onChange={handleChange}
+          required
+        />
+        <input
+          name="categories"
+          placeholder="Categories (comma-separated)"
+          value={form.categories}
+          onChange={handleChange}
+        />
+        <input
+          name="instock"
+          placeholder="Stock"
+          value={form.instock}
+          onChange={handleChange}
+          required
+        />
 
         <div
           ref={dropRef}
@@ -111,8 +163,16 @@ const Products = () => {
           )}
         </div>
 
-        <input type="file" accept="image/*" name="image" onChange={handleImageChange} />
-        <button type="submit" style={uploadBtn}>Upload</button>
+        <input
+          type="file"
+          accept="image/*"
+          name="image"
+          ref={fileInputRef}          // 👈 so we can clear it
+          onChange={handleImageChange}
+        />
+        <button type="submit" style={uploadBtn}>
+          Upload
+        </button>
       </form>
 
       <h2>Products</h2>
@@ -123,7 +183,7 @@ const Products = () => {
 
             {p.imageUrl ? (
               <img
-                src={p.imageUrl}   // FULL correct backend path
+                src={p.imageUrl}
                 alt={p.name}
                 style={{
                   width: "100%",
@@ -138,7 +198,9 @@ const Products = () => {
             )}
 
             <p>{p.description}</p>
-            <p><b>Price:</b> ${p.price}</p>
+            <p>
+              <b>Price:</b> ${p.price}
+            </p>
 
             <button onClick={() => handleDelete(p._id)} style={deleteBtn}>
               Delete
@@ -150,12 +212,40 @@ const Products = () => {
   );
 };
 
-const grid = { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 20 };
-const formStyle = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 30 };
+const grid = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
+  gap: 20,
+};
+const formStyle = {
+  display: "grid",
+  gridTemplateColumns: "1fr 1fr",
+  gap: 10,
+  marginBottom: 30,
+};
 const card = { border: "1px solid #ccc", padding: 15, borderRadius: 8, background: "#fff" };
-const uploadBtn = { gridColumn: "span 2", padding: 10, background: "#28a745", color: "#fff", border: "none", borderRadius: 6 };
-const deleteBtn = { backgroundColor: "#dc3545", color: "#fff", border: "none", padding: 10, borderRadius: 6 };
-const dropZone = { gridColumn: "span 2", border: "2px dashed #aaa", padding: 20, textAlign: "center", borderRadius: 6 };
+const uploadBtn = {
+  gridColumn: "span 2",
+  padding: 10,
+  background: "#28a745",
+  color: "#fff",
+  border: "none",
+  borderRadius: 6,
+};
+const deleteBtn = {
+  backgroundColor: "#dc3545",
+  color: "#fff",
+  border: "none",
+  padding: 10,
+  borderRadius: 6,
+};
+const dropZone = {
+  gridColumn: "span 2",
+  border: "2px dashed #aaa",
+  padding: 20,
+  textAlign: "center",
+  borderRadius: 6,
+};
 const previewStyle = { maxWidth: "100%", maxHeight: 200, borderRadius: 6 };
 
 export default Products;
