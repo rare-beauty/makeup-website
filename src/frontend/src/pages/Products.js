@@ -16,11 +16,17 @@ const Products = () => {
   const dropRef = useRef(null);
 
   // ---- FETCH PRODUCTS ----
+  const fetchProducts = async () => {
+    try {
+      const res = await axios.get("/api/products");
+      setProducts(res.data);
+    } catch (err) {
+      console.error("❌ Fetch error:", err);
+    }
+  };
+
   useEffect(() => {
-    axios
-      .get("/api/products")
-      .then((res) => setProducts(res.data))
-      .catch((err) => console.error("❌ Fetch error:", err));
+    fetchProducts();
   }, []);
 
   const handleChange = (e) => {
@@ -61,7 +67,8 @@ const Products = () => {
       const res = await axios.post("/api/products", data);
       if (res.status === 201) {
         alert("Product uploaded!");
-        window.location.reload();
+        // 🔁 instead of full page reload, just refresh products in state
+        await fetchProducts();
       }
     } catch (err) {
       console.error("❌ Upload failed:", err);
