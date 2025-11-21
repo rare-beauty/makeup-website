@@ -41,7 +41,7 @@ const DealsSlider = () => {
             <img
               src={
                 deal.imageUrl
-                  ? `/api/products${deal.imageUrl}`
+                  ? `${deal.imageUrl}`
                   : "/assets/default-placeholder.png"
               }
               alt={deal.name}
