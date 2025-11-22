@@ -4,7 +4,7 @@
 locals {
   # One logical Mongo database + one KV secret per microservice
   mongo_databases = {
-    products = "mongo-connection"
+    products = "product-mongo-connection"
     contact  = "contact-mongo-connection"
     reviews  = "reviews-mongo-connection"
     users    = "users-mongo-connection"
@@ -156,7 +156,7 @@ module "mongo_database" {
 
   # Common
   db_engine           = "cosmos_mongo"                          # <--- IMPORTANT
-  name_prefix         = "${var.cfg.environment}-mongo01"        # e.g. "staging-mongo01"
+  name_prefix         = "${var.cfg.environment}-mongo-${each.key}"        # e.g. "staging-mongo01"
   db_name             = each.key                             # logical DB name inside Mongo
   resource_group_name = module.resourcegroup.resource_group_name
   location            = module.resourcegroup.resource_group_location
