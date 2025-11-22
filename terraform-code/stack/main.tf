@@ -1,4 +1,37 @@
 ﻿#################################
+# Locals for Mongo DBs & Workload Identities
+#################################
+locals {
+  # One logical Mongo database + one KV secret per microservice
+  mongo_databases = {
+    products = "mongo-connection"
+    contact  = "contact-mongo-connection"
+    reviews  = "reviews-mongo-connection"
+    users    = "users-mongo-connection"
+    orders   = "orders-mongo-connection"
+  }
+
+  # One UAMI + one ServiceAccount per microservice (SA names assumed)
+  wi_microservices = {
+    products = {
+      sa_name = "products-sa"
+    }
+    contact = {
+      sa_name = "contact-sa"
+    }
+    reviews = {
+      sa_name = "reviews-sa"
+    }
+    users = {
+      sa_name = "users-sa"
+    }
+    orders = {
+      sa_name = "orders-sa"
+    }
+  }
+}
+
+#################################
 # Resource Group
 #################################
 module "resourcegroup" {
@@ -114,19 +147,23 @@ module "database" {
 #################################
 # Database (Cosmos Mongo for a Mongo-based microservice)
 #################################
+
+
+
 module "mongo_database" {
+  for_each = local.mongo_databases
   source = "git::https://github.com/rare-beauty/terraform-infrastructure.git//terraform/modules/database-db?ref=v5"
 
   # Common
   db_engine           = "cosmos_mongo"                          # <--- IMPORTANT
   name_prefix         = "${var.cfg.environment}-mongo01"        # e.g. "staging-mongo01"
-  db_name             = "products"                              # logical DB name inside Mongo
+  db_name             = each.key                             # logical DB name inside Mongo
   resource_group_name = module.resourcegroup.resource_group_name
   location            = module.resourcegroup.resource_group_location
 
   # Key Vault (store Mongo connection string)
   key_vault_id   = module.keyvault.key_vault_id
-  kv_secret_name = "mongo-connection"                           # secret name in KV (e.g. used by product-service)
+  kv_secret_name = each.value                           # secret names in KV (e.g. used by micro-service)
 
   # If the module has extra cosmos-specific inputs, you can set them here.
   # Otherwise it will use sensible defaults for cosmos_mongo.
@@ -135,6 +172,8 @@ module "mongo_database" {
     azurerm_role_assignment.tf_kv_secrets_officer
   ]
 }
+
+ 
 
 
 #################################
@@ -179,8 +218,10 @@ module "aks" {
 ###############################
 #  UAMI for Workload Identity (per env)
 #################################
+
 resource "azurerm_user_assigned_identity" "wi_app" {
-  name                = "uami-aks-kv-${var.cfg.environment}"
+  for_each            = local.wi_microservices
+  name                = "uami-${var.cfg.environment}-${each.key}" # e.g. uami-staging-products
   location            = module.resourcegroup.resource_group_location
   resource_group_name = module.resourcegroup.resource_group_name
 }
@@ -188,42 +229,48 @@ resource "azurerm_user_assigned_identity" "wi_app" {
 #################################
 # Federated Identity Credential (OIDC trust AKS -> UAMI)
 #################################
+
 resource "azurerm_federated_identity_credential" "wi_fic" {
-  name                = "fic-${var.cfg.environment}-${var.cfg.serviceaccount_name}"
+  for_each            = local.wi_microservices
+  name                = "fic-${var.cfg.environment}-${each.key}" # e.g. fic-staging-products
   resource_group_name = module.resourcegroup.resource_group_name
 
-  # REQUIRED join fields:
-  parent_id = azurerm_user_assigned_identity.wi_app.id
+  parent_id = azurerm_user_assigned_identity.wi_app[each.key].id
   issuer    = module.aks.oidc_issuer_url
-  subject   = "system:serviceaccount:${var.cfg.k8s_namespace}:${var.cfg.serviceaccount_name}"
+  subject   = "system:serviceaccount:${var.cfg.k8s_namespace}:${each.value.sa_name}"
   audience  = ["api://AzureADTokenExchange"]
 
   depends_on = [ module.aks ]
 }
 
+
 #################################
 # RBAC Assignments 
 #################################
+
 module "rbac" {
   source  = "git::https://github.com/rare-beauty/terraform-infrastructure.git//terraform/modules/rbac?ref=v5"
   enabled = contains(["staging", "production"], var.cfg.environment)
 
-  assignments = {
-    wi_kv = {
-      principal_id    = azurerm_user_assigned_identity.wi_app.principal_id
-      role_definition = "Key Vault Secrets User"
-      scope           = module.keyvault.key_vault_id
-      #scope           = data.azurerm_key_vault.kv_for_wi.id
+  assignments = merge(
+    {
+      # AKS can pull images from ACR
+      aks_acr_pull = {
+        principal_id    = module.aks.kubelet_identity
+        role_definition = "AcrPull"
+        scope           = module.acr.acr_id
+      }
+    },
+    {
+      # Each microservice UAMI can read secrets from Key Vault
+      for svc, cfg in local.wi_microservices :
+      "wi_kv_${svc}" => {
+        principal_id    = azurerm_user_assigned_identity.wi_app[svc].principal_id
+        role_definition = "Key Vault Secrets User"
+        scope           = module.keyvault.key_vault_id
+      }
     }
-
-     # AKS can pull images from ACR
-     aks_acr_pull = {
-       principal_id    = module.aks.kubelet_identity
-       role_definition = "AcrPull"
-       scope           = module.acr.acr_id
-     }
-
-  }
+  )
 }
 
 #    

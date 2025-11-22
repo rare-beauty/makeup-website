@@ -21,8 +21,7 @@ cfg = {
   oidc_issuer_enabled = true
   workload_identity_enabled = true
   k8s_namespace       = "makeup-staging"
-  serviceaccount_name = "wi-sa"
-  
+    
   environment = "staging"
   
 }

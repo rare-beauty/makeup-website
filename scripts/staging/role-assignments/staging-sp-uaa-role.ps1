@@ -12,3 +12,15 @@ az role assignment create `
   --assignee-object-id $STG_OID `
   --role "User Access Administrator" `
   --scope "/subscriptions/$SUB"
+
+
+# Note: reated it because your staging Terraform Service Principal (the one with AppId 53b0d08d-b186-40c2-8e4d-c9a3d3619e59)
+# did NOT have enough permission to assign RBAC roles from your pipeline.
+# Terraform needed to:
+# assign ACR roles
+# assign Key Vault data-plane roles
+# assign subnet/NIC roles
+# assign UAMI → Key Vault roles
+# assign AKS → ACR pull role
+# assign Gateway/Ingress roles
+# assign Storage account roles
