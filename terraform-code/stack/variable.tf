@@ -23,7 +23,7 @@ variable "cfg" {
     oidc_issuer_enabled = bool
     workload_identity_enabled = bool
     k8s_namespace           = string
-    serviceaccount_name     = string
+    //serviceaccount_name     = string
     public_network_access_enabled =  bool
     kv_network_default_action = string
 
