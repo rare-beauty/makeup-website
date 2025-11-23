@@ -1,54 +1,102 @@
 const express = require("express");
-const mongoose = require("mongoose");
 const cors = require("cors");
 const bodyParser = require("body-parser");
 
-// ✅ Models
-const Contact = require("./models/Contact");
-const Blog = require("./models/Blog");
+// ✅ DB + Models (this file handles Mongo connection using MONGO_URI_FILE)
+const { Contact, Blog } = require("./db");
 
 const app = express();
 app.use(cors());
 app.use(bodyParser.json());
 
-// ✅ MongoDB Connection
-mongoose.connect("mongodb://contact-blog-db:27017/contactBlogDB", {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-})
-.then(() => console.log("✅ Connected to Contact-Blog DB"))
-.catch((err) => console.error("❌ MongoDB Connection Error:", err));
+/**
+ * Simple health endpoint for probes
+ */
+app.get("/healthz", (req, res) => {
+  res.status(200).send("OK");
+});
 
-// ✅ Contact Form POST
-app.post("/contact", async (req, res) => {
+
+// ------------- CONTACT ENDPOINTS -------------
+
+// Reusable handler for creating a contact
+const createContactHandler = async (req, res) => {
   try {
     const { name, email, message } = req.body;
     const contact = new Contact({ name, email, message });
     await contact.save();
     res.status(201).json({ message: "Contact saved successfully!" });
   } catch (err) {
-    console.error(err);
+    console.error("❌ Error saving contact:", err);
+    res.status(500).json({ error: "Something went wrong" });
+  }
+};
+
+// Reusable handler for fetching all contacts
+const getContactsHandler = async (req, res) => {
+  try {
+    const allContacts = await Contact.find().sort({ createdAt: -1 });
+    res.json(allContacts);
+  } catch (err) {
+    console.error("❌ Error fetching contacts:", err);
+    res.status(500).json({ error: "Something went wrong" });
+  }
+};
+
+// ✅ API paths used by Ingress/probes
+app.post("/api/contact", createContactHandler);
+app.get("/api/contact", getContactsHandler);
+
+// ✅ Legacy / shorter paths (optional, keep for compatibility)
+app.post("/contact", createContactHandler);
+app.get("/contact", getContactsHandler);
+
+
+// ------------- BLOG ENDPOINTS -------------
+
+app.get("/api/blogs", async (req, res) => {
+  try {
+    const blogs = await Blog.find().sort({ date: -1 });
+    res.json(blogs);
+  } catch (err) {
+    console.error("❌ Error fetching blogs:", err);
     res.status(500).json({ error: "Something went wrong" });
   }
 });
 
-// ✅ Get All Contacts
-app.get("/contact", async (req, res) => {
-  const allContacts = await Contact.find().sort({ createdAt: -1 });
-  res.json(allContacts);
+app.post("/api/blogs", async (req, res) => {
+  try {
+    const newBlog = new Blog(req.body);
+    await newBlog.save();
+    res.status(201).send("Blog added");
+  } catch (err) {
+    console.error("❌ Error saving blog:", err);
+    res.status(500).json({ error: "Something went wrong" });
+  }
 });
 
-// ✅ Blog Endpoints
+// Optional legacy paths
 app.get("/blogs", async (req, res) => {
-  const blogs = await Blog.find().sort({ date: -1 });
-  res.json(blogs);
+  try {
+    const blogs = await Blog.find().sort({ date: -1 });
+    res.json(blogs);
+  } catch (err) {
+    console.error("❌ Error fetching blogs:", err);
+    res.status(500).json({ error: "Something went wrong" });
+  }
 });
 
 app.post("/blogs", async (req, res) => {
-  const newBlog = new Blog(req.body);
-  await newBlog.save();
-  res.status(201).send("Blog added");
+  try {
+    const newBlog = new Blog(req.body);
+    await newBlog.save();
+    res.status(201).send("Blog added");
+  } catch (err) {
+    console.error("❌ Error saving blog:", err);
+    res.status(500).json({ error: "Something went wrong" });
+  }
 });
 
-const PORT = 4001;
+
+const PORT = process.env.PORT || 4001;
 app.listen(PORT, () => console.log(`🚀 Contact-Blog Service running on ${PORT}`));
