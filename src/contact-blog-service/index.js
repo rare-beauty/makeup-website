@@ -47,7 +47,7 @@ const getContactsHandler = async (req, res) => {
 app.post("/api/contact", createContactHandler);
 app.get("/api/contact", getContactsHandler);
 
-// ✅ Legacy / shorter paths (optional, keep for compatibility)
+//  Legacy / shorter paths (optional, keep for compatibility)
 app.post("/contact", createContactHandler);
 app.get("/contact", getContactsHandler);
 
