@@ -35,10 +35,11 @@ const createContactHandler = async (req, res) => {
 // Reusable handler for fetching all contacts
 const getContactsHandler = async (req, res) => {
   try {
-    const allContacts = await Contact.find().sort({ createdAt: -1 });
+   // const allContacts = await Contact.find().sort({ createdAt: -1 });
+    const allContacts = await Contact.find().sort({ _id: -1 });
     res.json(allContacts);
   } catch (err) {
-    console.error("❌ Error fetching contacts:", err);
+    console.error("Error fetching contacts:", err);
     res.status(500).json({ error: "Something went wrong" });
   }
 };
