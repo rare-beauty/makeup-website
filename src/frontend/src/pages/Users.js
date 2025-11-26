@@ -3,24 +3,26 @@ import axios from "axios";
 //import usersImage from "../assets/users.jpg"; // Contact submissions header image
 
 const Users = () => {
-  const [contacts, setContacts] = useState([]);
+  const [users, setUsers] = useState([]);
 
   useEffect(() => {
     axios
-      .get("/api/contact")
-      .then((res) => setContacts(res.data))
-      .catch((err) => console.error("Error fetching contacts", err));
+      .get("/api/users")
+      .then((res) => setUsers(res.data))
+      .catch((err) => console.error("Error fetching users", err));
   }, []);
 
   return (
     <div style={styles.container}>
-      <h2 style={styles.title}>📋 Contact Form Submissions</h2>
+      <h2 style={styles.title}>👥 Users</h2>
       <div style={styles.grid}>
-        {contacts.map((user, index) => (
+        {users.map((user, index) => (
           <div key={index} style={styles.card}>
             <h3 style={styles.name}>{user.name}</h3>
             <p style={styles.email}>{user.email}</p>
-            <p style={styles.message}>💬 <i>{user.message}</i></p>
+            <p style={styles.message}>
+              👤 <i>{user.role}</i>
+            </p>
           </div>
         ))}
       </div>
