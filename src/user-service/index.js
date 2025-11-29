@@ -1,29 +1,39 @@
+// index.js (user-service)
 const express = require("express");
 const cors = require("cors");
 const bodyParser = require("body-parser");
-const User = require("./db");
+const ContactUser = require("./db"); // renamed
 
 const app = express();
 app.use(cors());
 app.use(bodyParser.json());
 
-// Health check
 app.get("/healthz", (req, res) => {
   res.status(200).send("OK");
 });
 
-// List users (supports /users AND /api/users)
+// GET: show all contact submissions on "Users" page
 app.get(["/users", "/api/users"], async (req, res) => {
-  const users = await User.find();
-  res.json(users);
+  try {
+    const users = await ContactUser.find().sort({ _id: -1 });
+    res.json(users);
+  } catch (err) {
+    console.error("❌ Error fetching users:", err);
+    res.status(500).json({ error: "Something went wrong" });
+  }
 });
 
-// Create user (supports /users AND /api/users)
+// (Optional) POST if you still want to manually add users – or you can remove this
 app.post(["/users", "/api/users"], async (req, res) => {
-  const user = new User(req.body);
-  await user.save();
-  res.status(201).send("User created");
+  try {
+    const user = new ContactUser(req.body);
+    await user.save();
+    res.status(201).send("User created");
+  } catch (err) {
+    console.error("❌ Error creating user:", err);
+    res.status(500).json({ error: "Something went wrong" });
+  }
 });
 
-const PORT = 4002;
+const PORT = process.env.PORT || 4002;
 app.listen(PORT, () => console.log(`User Service running on ${PORT}`));

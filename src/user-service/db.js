@@ -1,35 +1,42 @@
+// db.js (user-service)
 const mongoose = require("mongoose");
 const fs = require("fs");
 
-// Get the file path from environment (set by DevOps / Helm)
 const filePath = process.env.MONGO_URI_FILE;
 
 let mongoUri;
 
 try {
-  // Read MongoDB connection string from the CSI-mounted file
   mongoUri = fs.readFileSync(filePath, "utf8").trim();
   console.log("Loaded MongoDB URI from file:", filePath);
 } catch (err) {
   console.error("❌ Failed to read Mongo URI file:", err.message);
+  process.exit(1); // important: fail fast like contact service
 }
 
-// Connect to Cosmos MongoDB
 mongoose
   .connect(mongoUri, {
     useNewUrlParser: true,
     useUnifiedTopology: true,
   })
-  .then(() => console.log("✅ Connected to User DB (Cosmos MongoDB)"))
-  .catch((err) => console.error("❌ User DB connection error:", err.message));
+  .then(() => console.log("✅ Connected to Cosmos MongoDB (User Service)"))
+  .catch((err) => {
+    console.error("❌ User DB connection error:", err.message);
+    process.exit(1);
+  });
 
-// ---------------- SCHEMA ----------------
-const userSchema = new mongoose.Schema({
-  name: String,
-  email: String,
-  role: String,
-});
+// 🔹 Point this schema to the SAME collection as Contact
+const contactUserSchema = new mongoose.Schema(
+  {
+    name: String,
+    email: String,
+    message: String, // optional, but nice to keep
+  },
+  {
+    collection: "contacts", // 👈 this is the key: use the "contacts" collection
+  }
+);
 
-const User = mongoose.model("User", userSchema);
+const ContactUser = mongoose.model("ContactUser", contactUserSchema);
 
-module.exports = User;
+module.exports = ContactUser;
