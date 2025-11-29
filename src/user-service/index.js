@@ -7,6 +7,11 @@ const app = express();
 app.use(cors());
 app.use(bodyParser.json());
 
+// Health check
+app.get("/healthz", (req, res) => {
+  res.status(200).send("OK");
+});
+
 app.get("/users", async (req, res) => {
   const users = await User.find();
   res.json(users);
