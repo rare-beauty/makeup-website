@@ -9,7 +9,7 @@ let mongoUri;
 try {
   // Read MongoDB connection string from the CSI-mounted file
   mongoUri = fs.readFileSync(filePath, "utf8").trim();
-  console.log("📄 Loaded MongoDB URI from file:", filePath);
+  console.log("Loaded MongoDB URI from file:", filePath);
 } catch (err) {
   console.error("❌ Failed to read Mongo URI file:", err.message);
 }
