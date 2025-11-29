@@ -12,12 +12,14 @@ app.get("/healthz", (req, res) => {
   res.status(200).send("OK");
 });
 
-app.get("/users", async (req, res) => {
+// List users (supports /users AND /api/users)
+app.get(["/users", "/api/users"], async (req, res) => {
   const users = await User.find();
   res.json(users);
 });
 
-app.post("/users", async (req, res) => {
+// Create user (supports /users AND /api/users)
+app.post(["/users", "/api/users"], async (req, res) => {
   const user = new User(req.body);
   await user.save();
   res.status(201).send("User created");
