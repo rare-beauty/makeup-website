@@ -19,4 +19,4 @@ app.post("/users", async (req, res) => {
 });
 
 const PORT = 4002;
-app.listen(PORT, () => console.log(`🚀 User Service running on ${PORT}`));
+app.listen(PORT, () => console.log(`User Service running on ${PORT}`));
